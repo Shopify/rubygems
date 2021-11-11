@@ -435,7 +435,7 @@ RSpec.describe "bundle install from an existing gemspec" do
 
       context "on ruby" do
         before do
-          simulate_platform("ruby")
+          bundle "config set --local force_ruby_platform true"
           bundle :install
         end
 
