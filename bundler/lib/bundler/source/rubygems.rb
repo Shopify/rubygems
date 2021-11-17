@@ -334,7 +334,11 @@ module Bundler
       end
 
       def credless_remotes
-        remotes.map(&method(:suppress_configured_credentials))
+        if Bundler.settings[:allow_deployment_source_credential_changes]
+          remotes.map(&method(:remove_auth))
+        else
+          remotes.map(&method(:suppress_configured_credentials))
+        end
       end
 
       def remotes_for_spec(spec)
