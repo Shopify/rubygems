@@ -116,7 +116,6 @@ RSpec.describe "global gem caching" do
         G
 
         expect(source_global_cache("rack-1.0.0.gem")).to exist
-        expect(source2_global_cache("rack-0.9.1.gem")).to exist
         bundle :install, :artifice => "compact_index_no_gem", :raise_on_error => false
         expect(err).to include("Internal Server Error 500")
         expect(err).not_to include("ERROR REPORT TEMPLATE")
