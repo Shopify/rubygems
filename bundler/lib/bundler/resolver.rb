@@ -34,6 +34,9 @@ module Bundler
       @base.each do |ls|
         dep = Dependency.new(ls.name, ls.version)
         ls.source = source_for(ls.name) unless aggregate_global_source
+        if results_for(dep).empty?
+          raise GemNotFound, "Could not find gem '#{ls.name}' in #{ls.source.identifier}"
+        end
         @base_dg.add_vertex(ls.name, DepProxy.get_proxy(dep, ls.platform), true)
       end
       additional_base_requirements.each {|d| @base_dg.add_vertex(d.name, d) }

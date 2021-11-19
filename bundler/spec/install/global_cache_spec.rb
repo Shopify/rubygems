@@ -120,6 +120,7 @@ RSpec.describe "global gem caching" do
 
         expect(source_global_cache("rack-1.0.0.gem")).to exist
         expect(source2_global_cache("rack-0.9.1.gem")).to exist
+        File.delete bundled_app_lock
 
         install_gemfile <<-G, :artifice => "compact_index_no_gem", :raise_on_error => false
           source "#{source}"
