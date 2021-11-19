@@ -69,68 +69,63 @@ RSpec.describe "global gem caching" do
         expect(the_bundle).not_to include_gems "rack 0.9.1"
         expect(source2_global_cache("rack-0.9.1.gem")).to exist
 
-        gemfile <<-G
+        install_gemfile <<-G, :artifice => "compact_index_no_gem"
           source "#{source}"
           gem "rack", "1.0.0"
         G
 
-        bundle :install, :artifice => "compact_index_no_gem"
         expect(the_bundle).to include_gems "rack 1.0.0"
         expect(the_bundle).not_to include_gems "rack 0.9.1"
         simulate_new_machine
 
-        gemfile <<-G
+        install_gemfile <<-G, :artifice => "compact_index_no_gem"
           source "#{source2}"
           gem "rack", "0.9.1"
         G
 
-        bundle :install, :artifice => "compact_index_no_gem"
         expect(the_bundle).to include_gems "rack 0.9.1"
         expect(the_bundle).not_to include_gems "rack 1.0.0"
       end
 
       it "should not install if the wrong source is provided" do
-        gemfile <<-G
+        install_gemfile <<-G, :artifice => "compact_index"
           source "#{source}"
           gem "rack"
         G
 
-        bundle :install, :artifice => "compact_index"
         simulate_new_machine
         expect(the_bundle).not_to include_gems "rack 1.0.0"
         expect(source_global_cache("rack-1.0.0.gem")).to exist
 
-        gemfile <<-G
+        install_gemfile <<-G, :artifice => "compact_index"
           source "#{source2}"
           gem "rack", "0.9.1"
         G
 
-        bundle :install, :artifice => "compact_index"
         simulate_new_machine
         expect(the_bundle).not_to include_gems "rack 0.9.1"
+        expect(source_global_cache("rack-1.0.0.gem")).to exist
         expect(source2_global_cache("rack-0.9.1.gem")).to exist
 
-        gemfile <<-G
+        install_gemfile <<-G, :artifice => "compact_index_no_gem", :raise_on_error => false
           source "#{source2}"
           gem "rack", "1.0.0"
         G
 
-        expect(source_global_cache("rack-1.0.0.gem")).to exist
-        bundle :install, :artifice => "compact_index_no_gem", :raise_on_error => false
         expect(err).to include("Internal Server Error 500")
         expect(err).not_to include("ERROR REPORT TEMPLATE")
 
         expect(the_bundle).not_to include_gems "rack 1.0.0"
         expect(the_bundle).not_to include_gems "rack 0.9.1"
 
-        gemfile <<-G
+        expect(source_global_cache("rack-1.0.0.gem")).to exist
+        expect(source2_global_cache("rack-0.9.1.gem")).to exist
+
+        install_gemfile <<-G, :artifice => "compact_index_no_gem", :raise_on_error => false
           source "#{source}"
           gem "rack", "0.9.1"
         G
 
-        expect(source_global_cache("rack-1.0.0.gem")).to exist
-        expect(source2_global_cache("rack-0.9.1.gem")).to exist
-        bundle :install, :artifice => "compact_index_no_gem", :raise_on_error => false
         expect(err).to include("Internal Server Error 500")
         expect(err).not_to include("ERROR REPORT TEMPLATE")
 
