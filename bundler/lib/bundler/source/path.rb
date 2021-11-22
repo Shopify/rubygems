@@ -213,8 +213,8 @@ module Bundler
       end
 
       def relative_path(path = self.path)
-        if path.to_s.start_with?(root_path.to_s)
-          return path.relative_path_from(root_path)
+        if path.to_s.start_with?(root.to_s)
+          return path.relative_path_from(root)
         end
         path
       end
