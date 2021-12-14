@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 require_relative 'remote_fetcher'
 require_relative 'text'
+require 'json'
 
 ##
 # Utility methods for using the RubyGems API.
@@ -160,6 +161,13 @@ module Gem::GemcutterUtilities
     email = ask "   Email: "
     password = ask_for_password "Password: "
     say "\n"
+
+    response = rubygems_api_request(:get, "api/v1/profile", sign_in_host, scope: scope) do |request|
+      request.basic_auth email, password
+    end
+
+    message = "[WARNING] For protection of your account and gems, we encourage you to setup multifactor authentication at https://rubygems.org/multifactor_auth/new."
+    say message if JSON.parse(response.body)["mfa"] == "disabled"
 
     key_name     = get_key_name(scope)
     scope_params = get_scope_params(scope)
