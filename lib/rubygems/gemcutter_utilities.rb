@@ -166,7 +166,7 @@ module Gem::GemcutterUtilities
       request.basic_auth email, password
     end
 
-    message = "[WARNING] For protection of your account and gems, we encourage you to setup multifactor authentication at https://rubygems.org/multifactor_auth/new."
+    message = "[WARNING] For protection of your account and gems, it is encouraged that you set up multi-factor authentication at https://rubygems.org/multifactor_auth/new.\n\n"
     say message if JSON.parse(response.body)["mfa"] == "disabled"
 
     key_name     = get_key_name(scope)
