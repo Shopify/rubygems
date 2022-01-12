@@ -175,6 +175,38 @@ class TestGemCommandsPushCommand < Gem::TestCase
     send_battery
   end
 
+  def test_sending_multiple_gems
+    @response = "Successfully registered gem: freewill (1.0.0)"
+    @fetcher.data["#{@host}/api/v1/gems"] = [@response, 200, 'OK']
+
+    spec_1, path_1 = util_gem "freebird", "1.0.1" do |spec|
+      spec.metadata['allowed_push_host'] = @host
+    end
+
+    spec_2, path_2 = util_gem "cagedbird", "1.0.1" do |spec|
+      spec.metadata['allowed_push_host'] = @host
+    end
+
+    @cmd.options[:args] = [path_1, path_2]
+    use_ui @ui do
+      @cmd.instance_variable_set :@host, @host
+      @cmd.execute
+    end
+
+    assert_match %r{Pushing gem to #{@host}...}, @ui.output
+    assert_equal Net::HTTP::Post, @fetcher.last_request.class
+    assert_equal Gem.read_binary(path_1), @fetcher.last_request.body
+    assert_equal File.size(path_1), @fetcher.last_request["Content-Length"].to_i
+
+    assert_equal Net::HTTP::Post, @fetcher.last_request.class
+    assert_equal Gem.read_binary(path_2), @fetcher.last_request.body
+    assert_equal File.size(path_2), @fetcher.last_request["Content-Length"].to_i
+    assert_equal "application/octet-stream", @fetcher.last_request["Content-Type"]
+    assert_equal @api_key, @fetcher.last_request["Authorization"]
+
+    assert_match @response, @ui.output
+  end
+
   def test_sending_gem_to_allowed_push_host
     @host = "http://privategemserver.example"
 

@@ -48,22 +48,25 @@ The push command will use ~/.gem/credentials to authenticate to a server, but yo
   end
 
   def execute
-    gem_name = get_one_gem_name
-    default_gem_server, push_host = get_hosts_for(gem_name)
+    gem_names = get_all_gem_names
 
-    @host = if @user_defined_host
-              options[:host]
-            elsif default_gem_server
-              default_gem_server
-            elsif push_host
-              push_host
-            else
-              options[:host]
-            end
+    default_gem_server, push_host = get_hosts_for(gem_names.first)
 
-    sign_in @host, scope: get_push_scope
+      @host = if @user_defined_host
+                options[:host]
+              elsif default_gem_server
+                default_gem_server
+              elsif push_host
+                push_host
+              else
+                options[:host]
+              end
 
-    send_gem(gem_name)
+      sign_in @host, scope: get_push_scope
+
+    gem_names.each do |gem_name|
+      send_gem(gem_name)
+    end
   end
 
   def send_gem(name)
