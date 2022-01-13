@@ -50,7 +50,14 @@ The push command will use ~/.gem/credentials to authenticate to a server, but yo
   def execute
     gem_names = get_all_gem_names
 
-    default_gem_server, push_host = get_hosts_for(gem_names.first)
+    hosts_from_gems = gem_names.map do |gem_name|
+      get_hosts_for(gem_name)
+    end
+    too_many_hosts = hosts_from_gems.uniq.count > 1
+
+    raise "All gems must have the same host" if too_many_hosts
+
+    default_gem_server, push_host = hosts_from_gems.first
 
       @host = if @user_defined_host
                 options[:host]
