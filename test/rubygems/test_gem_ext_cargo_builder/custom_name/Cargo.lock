@@ -255,13 +255,12 @@ dependencies = [
 
 [[package]]
 name = "rb-sys"
-version = "0.9.0"
-source = "git+https://github.com/ianks/rb-sys?tag=v0.9.0#e4f00b9761af818d069a35d3802afdb15f5da5c3"
+version = "0.9.3"
+source = "git+https://github.com/ianks/rb-sys?tag=v0.9.3#c3d2f331659323a5caf239631265c3ae618ad9cc"
 dependencies = [
  "bindgen",
  "cc",
  "lazy_static",
- "libc",
  "linkify",
  "pkg-config",
  "shell-words",
