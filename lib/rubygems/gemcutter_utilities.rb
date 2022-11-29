@@ -245,13 +245,44 @@ module Gem::GemcutterUtilities
 
   def ask_otp(email, password)
     webauthn_url = webauthn_verification_url(email, password)
-    unless webauthn_url
+    options[:otp] = unless webauthn_url
       say 'You have enabled multi-factor authentication. Please enter OTP code.'
+      ask 'Code: '
     else
-      say "You have enabled multi-factor authentication. Please enter OTP code from your security device by visiting #{webauthn_url} or your authenticator app."
+      poll_for_response(webauthn_url, email, password)
+    end
+  end
+
+  def poll_for_response(webauthn_url, email, password)
+    say "You have enabled multi-factor authentication. Please authenticate by visiting #{webauthn_url}."
+
+    poll = Thread.new do
+      start_time = Time.now.utc
+      token = webauthn_url.match(/.*\/authn\/(?<token>.*)/)[:token]
+      until Time.now.utc > start_time + 300 # 5 minutes
+        response = rubygems_api_request(:get, "api/v1/webauthn/#{token}/status") do |request|
+          if email
+            request.basic_auth email, password
+          else
+            request.add_field "Authorization",  api_key
+          end
+        end
+        if response.is_a?(Net::HTTPSuccess)
+          Thread.current[:code] = response.body
+          break
+        end
+        if response.body == "otp has expired" # not great but thinking it's ok with the prototype
+          raise "Token has expired, please try again"
+        elsif response.body == "token invalid"
+          raise "Invalid verification link, please try again"
+        end
+
+        sleep 3
+      end
     end
 
-    options[:otp] = ask 'Code: '
+    poll.join
+    poll[:code]
   end
 
   def webauthn_verification_url(email, password)
