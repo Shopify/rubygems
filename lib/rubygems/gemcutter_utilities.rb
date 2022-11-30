@@ -244,20 +244,32 @@ module Gem::GemcutterUtilities
   end
 
   def ask_otp(email, password)
-    webauthn_url = webauthn_verification_url(email, password)
-    options[:otp] = unless webauthn_url
+    require "json"
+
+    webauthn_payload = JSON.parse(webauthn_verification_url(email, password))
+    options[:otp] = if webauthn_payload["mfa_types"] == ["totp"]
       say 'You have enabled multi-factor authentication. Please enter OTP code.'
       ask 'Code: '
-    else
-      poll_for_response(webauthn_url, email, password)
+    elsif webauthn_payload["mfa_types"] == ["webauthn"]
+      poll_for_response(webauthn_payload["url"], email, password)
+    else # webauthn and totp
+      poll_for_response(webauthn_payload["url"], email, password, otp: true)
     end
   end
 
-  def poll_for_response(webauthn_url, email, password)
-    say "You have enabled multi-factor authentication. Please authenticate by visiting #{webauthn_url} or enter an OTP code from your authenticator app."
+  def poll_for_response(webauthn_url, email, password, otp: false)
+    message = if otp
+      "You have enabled multi-factor authentication. Please authenticate by visiting #{webauthn_url} or enter an OTP code from your authenticator app."
+    else
+      "You have enabled multi-factor authentication. Please authenticate by visiting #{webauthn_url}."
+    end
+
+    say message
 
     ask_otp = Thread.new do
-      Thread.current[:code] = ask 'Code: '
+      if otp
+        Thread.current[:code] = ask 'Code: '
+      end
     end
 
     poll = Thread.new do
