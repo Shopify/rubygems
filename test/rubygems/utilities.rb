@@ -186,6 +186,22 @@ class HTTPResponseFactory
   end
 end
 
+class Gem::FakeBrowser
+  def self.options(uri)
+    options = Net::HTTP::Options.new(uri)
+    Net::HTTP.start(uri.hostname, uri.port) do |http|
+      http.request(options)
+    end
+  end
+
+  def self.get(uri)
+    get = Net::HTTP::Get.new(uri)
+    Net::HTTP.start(uri.hostname, uri.port) do |http|
+      http.request(get)
+    end
+  end
+end
+
 # :stopdoc:
 class Gem::RemoteFetcher
   def self.fetcher=(fetcher)

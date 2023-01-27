@@ -105,7 +105,7 @@ module Gem::GemcutterUtilities
     response = request_with_otp(method, uri, &block)
 
     if mfa_unauthorized?(response)
-      ask_otp(credentials)
+      fetch_otp(credentials)
       response = request_with_otp(method, uri, &block)
     end
 
@@ -251,14 +251,27 @@ module Gem::GemcutterUtilities
     end
   end
 
-  def ask_otp(credentials)
+  #ask_otp
+  def fetch_otp(credentials)
     if webauthn_url = webauthn_verification_url(credentials)
-      say "You have enabled multi-factor authentication. Please enter OTP code from your security device by visiting #{webauthn_url}."
+      wait_for_response(webauthn_url)
     else
       say "You have enabled multi-factor authentication. Please enter OTP code."
+      options[:otp] = ask "Code: "
     end
+  end
 
-    options[:otp] = ask "Code: "
+
+  def wait_for_response(webauthn_url)
+    port = 5678
+    server = TCPServer.new 5678
+
+    # byebug
+    connection = server.accept
+    connection.close
+
+    url_with_port = "#{webauthn_url}?port=#{port}"
+    say "You have enabled multi-factor authentication. Please visit #{url_with_port} to authenticate via security device."
   end
 
   def webauthn_verification_url(credentials)

@@ -3,6 +3,7 @@ require_relative "helper"
 require "rubygems"
 require "rubygems/command"
 require "rubygems/gemcutter_utilities"
+require "rubygems/webauthn_listener"
 
 class TestGemGemcutterUtilities < Gem::TestCase
   def setup
@@ -230,7 +231,17 @@ class TestGemGemcutterUtilities < Gem::TestCase
     assert_equal "111111", @fetcher.last_request["OTP"]
   end
 
-  def test_sign_in_with_webauthn_otp
+  def test_sign_in_with_webauthn_sockets
+    # sign in for the first time
+    # response_fail, code: 401, msg: "Unauthorized"
+    # ask_otp -> create webauthn listener
+    # server sends a redirect request to the listener
+    # listener receives the preflight request and responds with a OK 204
+    # server sends a redirect request to the listener
+    # listener receives the real request and responds with "Webauthn Success"  OK 200
+    # client grabs the OTP from the uri and uses that as the OTP
+
+    # FakeBrowser that sends OPTIONS and then GET to listener
     webauthn_verification_url = "rubygems.org/api/v1/webauthn_verification/odow34b93t6aPCdY"
     response_fail = "You have enabled multifactor authentication"
     api_key       = "a5fdbb6ba150cbb83aad2bb2fede64cf040453903"
@@ -242,10 +253,37 @@ class TestGemGemcutterUtilities < Gem::TestCase
       else
         HTTPResponseFactory.create(body: api_key, code: 200, msg: "OK")
       end
-    end, nil, [], "111111\n", webauthn_verification_url)
+    end, nil, [], "", webauthn_verification_url)
+    puts "djfhskdh"
+    url_with_port = "#{webauthn_verification_url}?port=5678"
+    assert_match "You have enabled multi-factor authentication. Please visit #{url_with_port} to authenticate via security device.", @sign_in_ui.output
+    puts "djfhskdh"
+    # Gem::FakeBrowser.options URI("http://localhost:5678?code=xyz")
+    # Gem::FakeBrowser.get URI("http://localhost:5678?code=xyz")
 
-    assert_match "You have enabled multi-factor authentication. Please enter OTP code from your security device by visiting #{webauthn_verification_url}", @sign_in_ui.output
+    assert_match "You have successfully logged in. You may close the browser window.", @sign_in_ui.output
   end
+
+      # Sad cases:
+        # 400 Bad Request - missing params
+        #
+
+  # def test_sign_in_with_webauthn_otp
+  #   webauthn_verification_url = "rubygems.org/api/v1/webauthn_verification/odow34b93t6aPCdY"
+  #   response_fail = "You have enabled multifactor authentication"
+  #   api_key       = "a5fdbb6ba150cbb83aad2bb2fede64cf040453903"
+
+  #   util_sign_in(proc do
+  #     @call_count ||= 0
+  #     if (@call_count += 1).odd?
+  #       HTTPResponseFactory.create(body: response_fail, code: 401, msg: "Unauthorized")
+  #     else
+  #       HTTPResponseFactory.create(body: api_key, code: 200, msg: "OK")
+  #     end
+  #   end, nil, [], "111111\n", webauthn_verification_url)
+
+  #   assert_match "You have enabled multi-factor authentication. Please enter OTP code from your security device by visiting #{webauthn_verification_url}", @sign_in_ui.output
+  # end
 
   def util_sign_in(response, host = nil, args = [], extra_input = "", webauthn_url = nil)
     email             = "you@example.com"
