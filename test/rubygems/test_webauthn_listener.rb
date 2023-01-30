@@ -1,4 +1,3 @@
-
 # frozen_string_literal: true
 require_relative "helper"
 require "rubygems/webauthn_listener"
@@ -17,6 +16,7 @@ class WebauthnListenerTest < Gem::TestCase
     # @socket.puts "Fred"
 
     # Gem::FakeBrowser.options URI("http://localhost:5678?code=xyz")
+
     Gem::FakeBrowser.get URI("http://localhost:5678?code=xyz")
 
     # uri = URI("http://localhost:5678?code=xyz")

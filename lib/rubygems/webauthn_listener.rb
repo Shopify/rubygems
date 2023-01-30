@@ -5,26 +5,30 @@ class Gem::WebauthnListener
     @port = port
   end
 
+
   def start
-    webserver = Thread.new do
-      begin
-        @server = TCPServer.new(port)
-        # byebug
-        body = "YOYOYOYO"
-        connection = @server.accept
-        # while (input = connection.gets)
-        #   # byebug
-        # end
-        connection.puts "HTTP/1.1 200"
-        connection.puts "Content-Type: text/plain"
-        connection.puts "Content-Length: #{body.bytesize}" if body
-        connection.puts "Connection: close\r\n"
-        connection.puts
-        connection.print body
-        connection.close
-      ensure
-        stop
+    @server = TCPServer.new(port)
+    1.times do
+    #loop do
+      webserver = Thread.start(@server.accept) do |connection|
+        begin
+          # byebug
+          body = "YOYOYOYO"
+          # while (input = connection.gets)
+          #   # byebug
+          # end
+          connection.puts "HTTP/1.1 200"
+          connection.puts "Content-Type: text/plain"
+          connection.puts "Content-Length: #{body.bytesize}" if body
+          connection.puts "Connection: close\r\n"
+          connection.puts
+          connection.print body
+          connection.close
+        ensure
+          stop
+        end
       end
+      webserver.abort_on_exception = true
     end
 
     # webserver.join
