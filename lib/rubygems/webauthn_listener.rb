@@ -7,16 +7,19 @@ class Gem::WebauthnListener
 
 
   def start
-    @server = TCPServer.new(port)
-    1.times do
-    #loop do
-      webserver = Thread.start(@server.accept) do |connection|
-        begin
-          # byebug
-          body = "YOYOYOYO"
-          # while (input = connection.gets)
-          #   # byebug
-          # end
+    webserver = Thread.new do
+      begin
+        @server = TCPServer.new(port)
+        body = "YOYOYOYO"
+        connection = @server.accept
+        while (input = connection.gets)
+          puts input
+          # GET /?code=xyz HTTP/1.1
+          # Accept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+          # Accept: */*
+          # User-Agent: Ruby
+          # Host: localhost:5678
+
           connection.puts "HTTP/1.1 200"
           connection.puts "Content-Type: text/plain"
           connection.puts "Content-Length: #{body.bytesize}" if body
@@ -24,12 +27,36 @@ class Gem::WebauthnListener
           connection.puts
           connection.print body
           connection.close
-        ensure
-          stop
+
+          break
         end
+      ensure
+        stop
       end
-      webserver.abort_on_exception = true
     end
+
+    # 1.times do
+    # #loop do
+    #   webserver = Thread.start(@server.accept) do |connection|
+    #     begin
+    #       # byebug
+    #       body = "YOYOYOYO"
+    #       # while (input = connection.gets)
+    #       #   # byebug
+    #       # end
+    #       connection.puts "HTTP/1.1 200"
+    #       connection.puts "Content-Type: text/plain"
+    #       connection.puts "Content-Length: #{body.bytesize}" if body
+    #       connection.puts "Connection: close\r\n"
+    #       connection.puts
+    #       connection.print body
+    #       connection.close
+    #     ensure
+    #       stop
+    #     end
+    #   end
+    #   webserver.abort_on_exception = true
+    # end
 
     # webserver.join
     # socket waits for a request

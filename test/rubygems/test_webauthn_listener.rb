@@ -17,7 +17,8 @@ class WebauthnListenerTest < Gem::TestCase
 
     # Gem::FakeBrowser.options URI("http://localhost:5678?code=xyz")
 
-    Gem::FakeBrowser.get URI("http://localhost:5678?code=xyz")
+    res = Gem::FakeBrowser.get URI("http://localhost:5678?code=xyz")
+    puts res.body
 
     # uri = URI("http://localhost:5678?code=xyz")
     # res = Net::HTTP.get(uri)
