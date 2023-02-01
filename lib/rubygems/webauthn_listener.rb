@@ -1,71 +1,63 @@
+# frozen_string_literal: true
+require "rubygems/gemcutter_utilities"
+
 class Gem::WebauthnListener
+  include Gem::GemcutterUtilities
   attr_reader :port
 
   def initialize(port = 5678)
     @port = port
   end
 
-
-  def start
+  def wait_for_otp_code
     webserver = Thread.new do
+      server = TCPServer.new(port)
       begin
-        @server = TCPServer.new(port)
-        body = "YOYOYOYO"
-        connection = @server.accept
-        while (input = connection.gets)
-          puts input
-          # GET /?code=xyz HTTP/1.1
-          # Accept-Encoding: gzip;q=1.0,deflate;q=0.6,identity;q=0.3
-          # Accept: */*
-          # User-Agent: Ruby
-          # Host: localhost:5678
+        socket = server.accept
+        while (request_line = socket.gets)
+          method, req_uri, protocol = request_line.split(' ')
 
-          connection.puts "HTTP/1.1 200"
-          connection.puts "Content-Type: text/plain"
-          connection.puts "Content-Length: #{body.bytesize}" if body
-          connection.puts "Connection: close\r\n"
-          connection.puts
-          connection.print body
-          connection.close
-
+          case method.upcase
+          when "OPTIONS"
+            send_options_response(socket)
+          when "GET"
+            # code = parse_otp_from_uri(req_uri)
+            send_get_response(socket)
+          else
+            # raise error
+          end
           break
         end
       ensure
-        stop
+        server.close
       end
     end
-
-    # 1.times do
-    # #loop do
-    #   webserver = Thread.start(@server.accept) do |connection|
-    #     begin
-    #       # byebug
-    #       body = "YOYOYOYO"
-    #       # while (input = connection.gets)
-    #       #   # byebug
-    #       # end
-    #       connection.puts "HTTP/1.1 200"
-    #       connection.puts "Content-Type: text/plain"
-    #       connection.puts "Content-Length: #{body.bytesize}" if body
-    #       connection.puts "Connection: close\r\n"
-    #       connection.puts
-    #       connection.print body
-    #       connection.close
-    #     ensure
-    #       stop
-    #     end
-    #   end
-    #   webserver.abort_on_exception = true
-    # end
-
-    # webserver.join
-    # socket waits for a request
-    # once you get a request
-    # it'll send something back
-    # close the socket
   end
 
-  def stop
-    @server.close
+  def parse_otp_from_uri(uri)
+  end
+
+  def send_options_response(connection)
+    connection.puts "HTTP/1.1 204"
+    connection.puts "Access-Control-Allow-Origin: #{host}"
+    connection.puts "Access-Control-Allow-Methods: POST"
+    connection.puts "Access-Control-Allow-Headers: Content-Type, Authorization, x-csrf-token"
+    connection.puts "Connection: close"
+    connection.close
+  end
+
+  def send_get_response(connection)
+    body = "success"
+
+    connection.puts "HTTP/1.1 200"
+    connection.puts "Content-Type: text/plain"
+    connection.puts "Content-Length: #{body.bytesize}"
+    connection.puts "Access-Control-Allow-Origin: #{host}"
+    connection.puts "Access-Control-Allow-Methods: POST"
+    connection.puts "Access-Control-Allow-Headers: Content-Type, Authorization, x-csrf-token"
+    connection.puts "Connection: close"
+    connection.puts
+    connection.puts body
+    connection.close
   end
 end
