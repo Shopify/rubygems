@@ -81,8 +81,8 @@ module Gem::GemcutterUtilities
   #
   # If +allowed_push_host+ metadata is present, then it will only allow that host.
 
-  def rubygems_api_request(method, path, host = nil, allowed_push_host = nil, scope: nil, &block)
-    require "net/http"
+  def rubygems_api_request(method, path, host = nil, allowed_push_host = nil, scope: nil, email: nil, password: nil, &block)
+    require 'net/http'
 
     self.host = host if host
     unless self.host
@@ -104,7 +104,7 @@ module Gem::GemcutterUtilities
     response = request_with_otp(method, uri, &block)
 
     if mfa_unauthorized?(response)
-      ask_otp
+      ask_otp(email, password)
       response = request_with_otp(method, uri, &block)
     end
 
@@ -170,7 +170,7 @@ module Gem::GemcutterUtilities
     say "#{warning}\n" if warning
 
     response = rubygems_api_request(:post, "api/v1/api_key",
-                                    sign_in_host, scope: scope) do |request|
+                                    sign_in_host, email: email, password: password, scope: scope) do |request|
       request.basic_auth email, password
       request["OTP"] = otp if otp
       request.body = URI.encode_www_form({ name: key_name }.merge(all_params))
@@ -249,9 +249,79 @@ module Gem::GemcutterUtilities
     end
   end
 
-  def ask_otp
-    say "You have enabled multi-factor authentication. Please enter OTP code."
-    options[:otp] = ask "Code: "
+  def ask_otp(email, password)
+    require "json"
+
+    webauthn_payload = JSON.parse(webauthn_verification_url(email, password))
+    options[:otp] = if webauthn_payload["mfa_types"] == ["totp"]
+      say 'You have enabled multi-factor authentication. Please enter OTP code.'
+      ask 'Code: '
+    elsif webauthn_payload["mfa_types"] == ["webauthn"]
+      poll_for_response(webauthn_payload["url"], email, password)
+    else # webauthn and totp
+      poll_for_response(webauthn_payload["url"], email, password, otp: true)
+    end
+  end
+
+  def poll_for_response(webauthn_url, email, password, otp: false)
+    message = if otp
+      "You have enabled multi-factor authentication. Please authenticate by visiting #{webauthn_url} or enter an OTP code from your authenticator app."
+    else
+      "You have enabled multi-factor authentication. Please authenticate by visiting #{webauthn_url}."
+    end
+
+    say message
+
+    ask_otp = Thread.new do
+      if otp
+        Thread.current[:code] = ask 'Code: '
+      end
+    end
+
+    poll = Thread.new do
+      start_time = Time.now.utc
+      token = webauthn_url.match(/.*\/authn\/(?<token>.*)/)[:token]
+      until Time.now.utc > start_time + 300 # 5 minutes
+        if ask_otp[:code]
+          Thread.current[:code] = ask_otp[:code]
+          break
+        end
+        response = rubygems_api_request(:get, "api/v1/webauthn/#{token}/status") do |request|
+          if email
+            request.basic_auth email, password
+          else
+            request.add_field "Authorization",  api_key
+          end
+        end
+        if response.is_a?(Net::HTTPSuccess)
+          Thread.current[:code] = response.body
+          ask_otp.terminate
+          break
+        end
+        if response.body == "otp has expired" # not great but thinking it's ok with the prototype
+          raise "Token has expired, please try again"
+        elsif response.body == "token invalid"
+          raise "Invalid verification link, please try again"
+        end
+
+        sleep 1
+      end
+    end
+
+    ask_otp.join
+    poll.join
+    poll[:code]
+  end
+
+  def webauthn_verification_url(email, password)
+    response = rubygems_api_request(:post, "api/v1/webauthn") do |request|
+      if email
+        request.basic_auth email, password
+      else
+        request.add_field "Authorization",  api_key
+      end
+    end
+    response.is_a?(Net::HTTPSuccess) ? response.body : nil
   end
 
   def pretty_host(host)
