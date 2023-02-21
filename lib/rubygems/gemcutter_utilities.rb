@@ -268,7 +268,7 @@ module Gem::GemcutterUtilities
     thread = Thread.new do
       Thread.current[:otp] = Gem::WebauthnListener.wait_for_otp_code(host, server)
     end
-    thread.abort_on_exception = true
+    # thread.abort_on_exception = true
     thread.report_on_exception = false
 
     url_with_port = "#{webauthn_url}?port=#{port}"
