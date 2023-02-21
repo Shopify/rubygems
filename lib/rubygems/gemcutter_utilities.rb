@@ -267,21 +267,23 @@ module Gem::GemcutterUtilities
 
     thread = Thread.new do
       Thread.current[:otp] = Gem::WebauthnListener.wait_for_otp_code(host, server)
+    rescue Gem::WebauthnVerificationError => e
+      Thread.current[:error] = e
     end
-    # thread.abort_on_exception = true
+    thread.abort_on_exception = true
     thread.report_on_exception = false
 
     url_with_port = "#{webauthn_url}?port=#{port}"
     say "You have enabled multi-factor authentication. Please visit #{url_with_port} to authenticate via security device."
 
     thread.join
+    if e = thread[:error]
+      alert_error e.message
+      terminate_interaction(1)
+    end
+
     say "You are verified with a security device. You may close the browser window."
     thread[:otp]
-
-  rescue Gem::WebauthnVerificationError => e
-    alert_error e.message
-    puts e.message
-    terminate_interaction(1)
   end
 
   def webauthn_verification_url(credentials)
