@@ -267,9 +267,6 @@ module Gem::GemcutterUtilities
 
     thread = Thread.new do
       Thread.current[:otp] = Gem::WebauthnListener.wait_for_otp_code(host, server)
-    rescue Gem::WebauthnVerificationError => e
-      alert_error e.message
-      terminate_interaction(1)
     end
     thread.abort_on_exception = true
     thread.report_on_exception = false
@@ -280,6 +277,11 @@ module Gem::GemcutterUtilities
     thread.join
     say "You are verified with a security device. You may close the browser window."
     thread[:otp]
+
+  rescue Gem::WebauthnVerificationError => e
+    alert_error e.message
+    puts e.message
+    terminate_interaction(1)
   end
 
   def webauthn_verification_url(credentials)
