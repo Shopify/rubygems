@@ -18,6 +18,30 @@
 #
 
 class Gem::WebauthnListener
+  class SocketResponder
+    attr_reader :socket, :host
+
+    def initialize(socket, host)
+      @socket = socket
+      @host = host
+    end
+
+    def send_response(response)
+      payload = "HTTP/#{response.http_version} #{response.code} #{response.msg}" + "\r\n" + response.to_hash.map{ |k, v| "#{k}: #{v.join(', ')}" }.join("\r\n") + "\r\n\r\n" + response.body
+
+      @socket.print payload
+      @socket.close
+    end
+
+    def access_control_headers
+    {
+      "Access-Control-Allow-Origin" => host,
+      "Access-Control-Allow-Methods" => "POST",
+      "Access-Control-Allow-Headers" => "Content-Type, Authorization, x-csrf-token"
+    }
+    end
+  end
+
   class Response
     attr_reader :host
 
@@ -31,6 +55,7 @@ class Gem::WebauthnListener
     end
 
     def payload
+
       status_line_and_connection + access_control_headers + content
     end
 

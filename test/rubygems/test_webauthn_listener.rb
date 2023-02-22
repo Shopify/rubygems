@@ -11,8 +11,8 @@ class WebauthnListenerTest < Gem::TestCase
 
   def test_wait_for_otp_code_get_follows_options
     wait_for_otp_code
-    assert Gem::FakeBrowser.options(URI("http://localhost:#{@port}?code=xyz")).is_a? Net::HTTPNoContent
-    assert Gem::FakeBrowser.get(URI("http://localhost:#{@port}?code=xyz")).is_a? Net::HTTPOK
+    assert_equal Net::HTTPNoContent, Gem::FakeBrowser.options(URI("http://localhost:#{@port}?code=xyz")).class
+    assert_equal Net::HTTPOK, Gem::FakeBrowser.get(URI("http://localhost:#{@port}?code=xyz")).class
   end
 
   def test_wait_for_otp_code_options_request

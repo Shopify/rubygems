@@ -49,9 +49,15 @@ class Gem::WebauthnListener
         raise Gem::WebauthnVerificationError, "Page at #{req_uri.path} not found."
       end
 
+      socket_responder = Gem::WebauthnListener::SocketResponder.new(socket, host)
+
       case method.upcase
       when "OPTIONS"
-        ResponseNoContent.send(socket, host)
+        headers = { "Connection" => "close"}
+        headers.merge! socket_responder.access_control_headers
+        response = HTTPResponseFactory.create(body: "kablammo", code: 204, msg: "No Content", headers: headers )
+
+        socket_responder.send_response(response)
         next # will be GET
       when "GET"
         if otp = parse_otp_from_uri(req_uri)
