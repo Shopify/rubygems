@@ -81,8 +81,8 @@ module Gem::GemcutterUtilities
   #
   # If +allowed_push_host+ metadata is present, then it will only allow that host.
 
-  def rubygems_api_request(method, path, host = nil, allowed_push_host = nil, scope: nil, &block)
-    require "net/http"
+  def rubygems_api_request(method, path, host = nil, allowed_push_host = nil, scope: nil, email: nil, password: nil, &block)
+    require 'net/http'
 
     self.host = host if host
     unless self.host
@@ -104,7 +104,7 @@ module Gem::GemcutterUtilities
     response = request_with_otp(method, uri, &block)
 
     if mfa_unauthorized?(response)
-      ask_otp
+      ask_otp(email, password)
       response = request_with_otp(method, uri, &block)
     end
 
@@ -170,7 +170,7 @@ module Gem::GemcutterUtilities
     say "#{warning}\n" if warning
 
     response = rubygems_api_request(:post, "api/v1/api_key",
-                                    sign_in_host, scope: scope) do |request|
+                                    sign_in_host, email: email, password: password, scope: scope) do |request|
       request.basic_auth email, password
       request["OTP"] = otp if otp
       request.body = URI.encode_www_form({ name: key_name }.merge(all_params))
@@ -249,9 +249,110 @@ module Gem::GemcutterUtilities
     end
   end
 
-  def ask_otp
-    say "You have enabled multi-factor authentication. Please enter OTP code."
-    options[:otp] = ask "Code: "
+  def ask_otp(email, password)
+    webauthn_url = webauthn_verification_url(email, password)
+    options[:otp] = unless webauthn_url
+      say 'You have enabled multi-factor authentication. Please enter OTP code.'
+      ask 'Code: '
+    else
+      wait_for_response(webauthn_url)
+    end
+  end
+
+  def wait_for_response(webauthn_url)
+    require "cgi"
+    # server = TCPServer.new 0
+    # server_addr = server.addr[1].to_s
+
+    # for the prototype we hardcode this port
+    server = TCPServer.new 5678
+    server_addr = 5678
+
+    webserv = Thread.new do
+      begin
+        loop do
+          # loop until a non preflight response is sent and code is received
+          break if code_received?(server)
+        end
+      ensure
+        server.close
+      end
+    end
+
+    webserv.abort_on_exception = true
+
+    redirect_uri = "http://localhost:5678"
+    uri = URI.parse(webauthn_url)
+    uri.query = URI.encode_www_form(URI.decode_www_form(uri.query || '') << ["redirect_uri", redirect_uri])
+    say "You have enabled multi-factor authentication. Please visit #{uri} to authenticate via security device."
+
+    webserv.join
+    webserv[:code]
+  end
+
+  def code_received?(server)
+    response = "Webauthn success"
+    response_code = "200 OK"
+
+    connection = server.accept
+    while (input = connection.gets)
+      begin
+        http_req = input.split(' ')
+        if http_req.length != 3
+          raise "invalid HTTP request received on callback"
+        end
+
+        if http_req[0] == "OPTIONS" # if request is a preflight request
+          send_response(connection, 204)
+          return false
+        end
+
+        params = URI.parse(http_req[1]).query
+        if params.nil? # also should raise if there is a missing code for params
+          raise "no params"
+        end
+        Thread.current[:code] = CGI.parse(params)["code"][0]
+      rescue StandardError => e
+        response = "Error processing request: #{e.message}"
+        response_code = "400 Bad Request"
+      end
+
+      send_response(connection, response_code, response)
+
+      if response_code != "200 OK"
+        raise response
+      end
+      break
+    end
+    true
+  end
+
+  def send_response(connection, code, body = nil)
+    connection.puts "HTTP/1.1 #{code}"
+    connection.puts "Content-Type: text/plain"
+    connection.puts "Content-Length: #{body.bytesize}" if body
+    connection.print access_control_headers
+    connection.puts "Connection: close\r\n"
+    connection.puts
+    connection.print body if body
+    connection.close
+  end
+
+  def access_control_headers
+    "Access-Control-Allow-Origin:  http://localhost:3000\r\n"+ # localhost needs to be changed
+    "Access-Control-Allow-Methods: POST\r\n"+
+    "Access-Control-Allow-Headers: Content-Type, Authorization, x-csrf-token\r\n"
+  end
+
+  def webauthn_verification_url(email, password)
+    response = rubygems_api_request(:post, "api/v1/webauthn") do |request|
+      if email
+        request.basic_auth email, password
+      else
+        request.add_field "Authorization",  api_key
+      end
+    end
+    response.is_a?(Net::HTTPSuccess) ? response.body : nil
   end
 
   def pretty_host(host)
