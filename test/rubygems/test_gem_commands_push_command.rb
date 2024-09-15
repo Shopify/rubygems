@@ -178,6 +178,51 @@ class TestGemCommandsPushCommand < Gem::TestCase
     send_battery
   end
 
+  def test_sending_multiple_gems_to_same_host
+    @first_response = "Successfully registered gem: freebird (1.0.0)"
+    @second_response = "Successfully registered gem: cagedbird (1.0.0)"
+    @fetcher.data["#{@host}/api/v1/gems"] = [[@first_response, 200, 'OK'], [@second_response, 200, 'OK']]
+
+    spec_1, path_1 = util_gem "freebird", "1.0.1" do |spec|
+      spec.metadata['allowed_push_host'] = @host
+    end
+
+    spec_2, path_2 = util_gem "cagedbird", "1.0.1" do |spec|
+      spec.metadata['allowed_push_host'] = @host
+    end
+    @cmd.options[:args] = [path_1, path_2]
+    use_ui @ui do
+      @cmd.instance_variable_set :@host, @host
+      @cmd.execute
+    end
+
+    assert_match %r{Successfully registered gem: freebird}, @ui.output
+    assert_match %r{Successfully registered gem: cagedbird}, @ui.output
+  end
+
+  def test_sending_multiple_gems_to_different_hosts
+    @host = "http://privategemserver.example"
+
+    @first_response = "Successfully registered gem: freebird (1.0.0)"
+    @second_response = "Successfully registered gem: cagedbird (1.0.0)"
+    @fetcher.data["#{@host}/api/v1/gems"] = [[@first_response, 200, 'OK'], [@second_response, 200, 'OK']]
+
+    spec_1, path_1 = util_gem "freebird", "1.0.1" do |spec|
+      spec.metadata['allowed_push_host'] = @host
+    end
+
+    spec_2, path_2 = util_gem "cagedbird", "1.0.1" do |spec|
+      spec.metadata['allowed_push_host'] = "https://rubygems.example"
+    end
+    @cmd.options[:args] = [path_1, path_2]
+    assert_raises "All gems must have the same host" do
+      use_ui @ui do
+        @cmd.instance_variable_set :@host, @host
+        @cmd.execute
+      end
+    end
+  end
+
   def test_sending_gem_to_allowed_push_host
     @host = "http://privategemserver.example"
 
