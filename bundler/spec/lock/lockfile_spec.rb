@@ -2079,30 +2079,35 @@ RSpec.describe "the lockfile format" do
   end
 
   it "forces verification of all dependencies when --verify-lockfile option is passed" do
-    # Use the existing repo2 setup from the before block
-    build_gem "myrack-verify", "1.0", :to_system => true do |s|
-      s.add_dependency "myrack-dependency"
+    build_repo4 do
+      build_gem "net-smtp", "0.5.0" do |s|
+        s.add_dependency "net-protocol"
+      end
+      
+      build_gem "net-protocol", "0.2.2"
     end
-    build_gem "myrack-dependency", "1.0", :to_system => true
-
-    install_gemfile <<~G
-      source "https://gem.repo2"
-      gem "myrack-verify"
+    
+    gemfile <<~G
+      source "https://gem.repo4"
+      gem "net-smtp"
     G
+    
+    # Cache the gems to simulate they're already installed
+    cache_gems "net-smtp-0.5.0", "net-protocol-0.2.2", gem_repo: gem_repo4
 
     # Create a lockfile with missing dependency relations
     lockfile <<~L
       GEM
-        remote: https://gem.repo2/
+        remote: https://gem.repo4/
         specs:
-          myrack-dependency (1.0)
-          myrack-verify (1.0)
+          net-protocol (0.2.2)
+          net-smtp (0.5.0)
 
       PLATFORMS
         #{lockfile_platforms}
 
       DEPENDENCIES
-        myrack-verify
+        net-smtp
 
       BUNDLED WITH
          #{Bundler::VERSION}
@@ -2116,14 +2121,14 @@ RSpec.describe "the lockfile format" do
       GEM
         remote: https://gem.repo2/
         specs:
-          myrack-dependency (1.0)
-          myrack-verify (1.0)
+          myrack (1.0.0)
+          myrack-obama (1.0)
 
       PLATFORMS
         #{lockfile_platforms}
 
       DEPENDENCIES
-        myrack-verify
+        myrack-obama
 
       BUNDLED WITH
          #{Bundler::VERSION}
@@ -2137,15 +2142,15 @@ RSpec.describe "the lockfile format" do
       GEM
         remote: https://gem.repo2/
         specs:
-          myrack-dependency (1.0)
-          myrack-verify (1.0)
-            myrack-dependency
+          myrack (1.0.0)
+          myrack-obama (1.0)
+            myrack
 
       PLATFORMS
         #{lockfile_platforms}
 
       DEPENDENCIES
-        myrack-verify
+        myrack-obama
 
       BUNDLED WITH
          #{Bundler::VERSION}
