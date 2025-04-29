@@ -39,7 +39,7 @@ module Bundler
       file = file ? Pathname.new(file).expand_path : Bundler.default_lockfile
 
       Bundler.settings.temporary(frozen: false) do
-        definition = Bundler.definition(update, file)
+        definition = Bundler.definition(update, file, options["verify-lockfile"])
         definition.add_checksums if options["add-checksums"]
 
         Bundler::CLI::Common.configure_gem_version_promoter(definition, options) if options[:update]

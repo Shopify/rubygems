@@ -7,10 +7,10 @@ module Bundler
   class Dsl
     include RubyDsl
 
-    def self.evaluate(gemfile, lockfile, unlock)
+    def self.evaluate(gemfile, lockfile, unlock, force_verify = false)
       builder = new
       builder.eval_gemfile(gemfile)
-      builder.to_definition(lockfile, unlock)
+      builder.to_definition(lockfile, unlock, force_verify)
     end
 
     VALID_PLATFORMS = Bundler::CurrentRuby::PLATFORM_MAP.keys.freeze
@@ -173,9 +173,9 @@ module Bundler
       with_source(git_source) { yield }
     end
 
-    def to_definition(lockfile, unlock)
+    def to_definition(lockfile, unlock, force_verify = false)
       check_primary_source_safety
-      Definition.new(lockfile, @dependencies, @sources, unlock, @ruby_version, @optional_groups, @gemfiles)
+      Definition.new(lockfile, @dependencies, @sources, unlock, @ruby_version, @optional_groups, @gemfiles, force_verify)
     end
 
     def group(*args, &blk)

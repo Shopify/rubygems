@@ -2078,6 +2078,80 @@ RSpec.describe "the lockfile format" do
     L
   end
 
+  it "forces verification of all dependencies when --verify-lockfile option is passed" do
+    # Use the existing repo2 setup from the before block
+    build_gem "myrack-verify", "1.0", :to_system => true do |s|
+      s.add_dependency "myrack-dependency"
+    end
+    build_gem "myrack-dependency", "1.0", :to_system => true
+
+    install_gemfile <<~G
+      source "https://gem.repo2"
+      gem "myrack-verify"
+    G
+
+    # Create a lockfile with missing dependency relations
+    lockfile <<~L
+      GEM
+        remote: https://gem.repo2/
+        specs:
+          myrack-dependency (1.0)
+          myrack-verify (1.0)
+
+      PLATFORMS
+        #{lockfile_platforms}
+
+      DEPENDENCIES
+        myrack-verify
+
+      BUNDLED WITH
+         #{Bundler::VERSION}
+    L
+
+    # Just running install shouldn't fix the lockfile because the gems are already installed
+    bundle "install"
+
+    # The lockfile should still have the incorrect dependency info
+    expect(lockfile).to eq <<~L
+      GEM
+        remote: https://gem.repo2/
+        specs:
+          myrack-dependency (1.0)
+          myrack-verify (1.0)
+
+      PLATFORMS
+        #{lockfile_platforms}
+
+      DEPENDENCIES
+        myrack-verify
+
+      BUNDLED WITH
+         #{Bundler::VERSION}
+    L
+
+    # Running with --verify-lockfile should fix the dependency relations
+    bundle "lock --verify-lockfile"
+
+    # Now the lockfile should list the dependency relation
+    expect(lockfile).to eq <<~L
+      GEM
+        remote: https://gem.repo2/
+        specs:
+          myrack-dependency (1.0)
+          myrack-verify (1.0)
+            myrack-dependency
+
+      PLATFORMS
+        #{lockfile_platforms}
+
+      DEPENDENCIES
+        myrack-verify
+
+      BUNDLED WITH
+         #{Bundler::VERSION}
+    L
+  end
+
   shared_examples_for "a lockfile missing dependent specs" do
     it "auto-heals" do
       build_repo4 do

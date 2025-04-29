@@ -592,6 +592,7 @@ module Bundler
     method_option "add-platform", type: :array, default: [], banner: "Add a new platform to the lockfile"
     method_option "remove-platform", type: :array, default: [], banner: "Remove a platform from the lockfile"
     method_option "normalize-platforms", type: :boolean, default: false, banner: "Normalize lockfile platforms"
+    method_option "verify-lockfile", type: :boolean, default: false, banner: "Force verification of dependencies in the lockfile even if gems are already installed"
     method_option "patch", type: :boolean, banner: "If updating, prefer updating only to next patch version"
     method_option "minor", type: :boolean, banner: "If updating, prefer updating only to next minor version"
     method_option "major", type: :boolean, banner: "If updating, prefer updating to next major version (default)"

@@ -30,13 +30,13 @@ module Bundler
     # @param unlock [Hash, Boolean, nil] Gems that have been requested
     #   to be updated or true if all gems should be updated
     # @return [Bundler::Definition]
-    def self.build(gemfile, lockfile, unlock)
+    def self.build(gemfile, lockfile, unlock, force_verify = false)
       unlock ||= {}
       gemfile = Pathname.new(gemfile).expand_path
 
       raise GemfileNotFound, "#{gemfile} not found" unless gemfile.file?
 
-      Dsl.evaluate(gemfile, lockfile, unlock)
+      Dsl.evaluate(gemfile, lockfile, unlock, force_verify)
     end
 
     #
@@ -57,8 +57,10 @@ module Bundler
     #   to be updated or true if all gems should be updated
     # @param ruby_version [Bundler::RubyVersion, nil] Requested Ruby Version
     # @param optional_groups [Array(String)] A list of optional groups
-    def initialize(lockfile, dependencies, sources, unlock, ruby_version = nil, optional_groups = [], gemfiles = [])
+    # @param force_verify [Boolean] Force verification of lockfile contents
+    def initialize(lockfile, dependencies, sources, unlock, ruby_version = nil, optional_groups = [], gemfiles = [], force_verify = false)
       unlock ||= {}
+      @force_verify = force_verify
 
       if unlock == true
         @unlocking_all = true
@@ -564,7 +566,7 @@ module Bundler
     end
 
     def resolve_needed?
-      unlocking? || something_changed?
+      unlocking? || something_changed? || @force_verify
     end
 
     def should_add_extra_platforms?

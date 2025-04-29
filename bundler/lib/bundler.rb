@@ -230,11 +230,11 @@ module Bundler
     #   to be updated or true if all gems should be updated
     # @param lockfile [Pathname] Path to Gemfile.lock
     # @return [Bundler::Definition]
-    def definition(unlock = nil, lockfile = default_lockfile)
-      @definition = nil if unlock
+    def definition(unlock = nil, lockfile = default_lockfile, force_verify = false)
+      @definition = nil if unlock || force_verify
       @definition ||= begin
         configure
-        Definition.build(default_gemfile, lockfile, unlock)
+        Definition.build(default_gemfile, lockfile, unlock, force_verify)
       end
     end
 
