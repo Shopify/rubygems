@@ -13,6 +13,16 @@ module Bundler
       @local = local
     end
 
+    def download_and_extract
+      spec.source.download_and_extract(
+        spec,
+        force: force,
+        local: local,
+        build_args: Array(spec_settings),
+        previous_spec: previous_spec,
+      )
+    end
+
     def install_from_spec
       post_install_message = install
       Bundler.ui.debug "#{worker}:  #{spec.name} (#{spec.version}) from #{spec.loaded_from}"

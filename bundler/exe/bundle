@@ -13,6 +13,8 @@ if File.exist?(base_path)
   $LOAD_PATH.unshift(base_path)
 end
 
+require "vernier"
+require "benchmark"
 require "bundler"
 
 require "bundler/friendly_errors"

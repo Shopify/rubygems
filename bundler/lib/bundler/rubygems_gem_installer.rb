@@ -8,7 +8,7 @@ module Bundler
       # Bundler needs to install gems regardless of binstub overwriting
     end
 
-    def install
+    def extract
       pre_install_checks
 
       run_pre_install_hooks
@@ -26,7 +26,9 @@ module Bundler
       SharedHelpers.filesystem_access(gem_dir, :write) do
         extract_files
       end
+    end
 
+    def install
       build_extensions if spec.extensions.any?
       write_build_info_file
       run_post_build_hooks

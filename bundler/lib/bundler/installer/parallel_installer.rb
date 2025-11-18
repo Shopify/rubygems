@@ -28,6 +28,10 @@ module Bundler
         state == :failed
       end
 
+      def has_extensions?
+        spec.extensions.any?
+      end
+
       def ready_to_enqueue?
         state == :none
       end
@@ -83,10 +87,10 @@ module Bundler
     end
 
     def call
-      if @rake
-        do_install(@rake, 0)
-        Gem::Specification.reset
-      end
+      # if @rake
+      #   do_install(@rake, 0)
+      #   Gem::Specification.reset
+      # end
 
       if @size > 1
         install_with_worker
@@ -107,6 +111,7 @@ module Bundler
     end
 
     def install_with_worker
+      download_and_extract_specs
       enqueue_specs
       process_specs until finished_installing?
     end
@@ -119,10 +124,35 @@ module Bundler
       end
     end
 
+    def download_and_extract_specs
+      @specs.each do |spec|
+        fetcher_pool.enq(spec)
+      end
+    ensure
+      fetcher_pool&.stop
+    end
+
     def worker_pool
       @worker_pool ||= Bundler::Worker.new @size, "Parallel Installer", lambda {|spec_install, worker_num|
         do_install(spec_install, worker_num)
       }
+    end
+
+    def fetcher_pool
+      @fetcher_pool ||= Bundler::Worker.new @size, "Parallel Downloader", lambda {|spec_install, worker_num|
+        download_and_extract(spec_install, worker_num)
+      }
+    end
+
+    def download_and_extract(spec_install, worker_num)
+      gem_installer = Bundler::GemInstaller.new(
+        spec_install.spec, @installer, @standalone, worker_num, @force, @local
+      )
+
+      gem_installer.download_and_extract
+    end
+
+    def install
     end
 
     def do_install(spec_install, worker_num)
@@ -193,7 +223,9 @@ module Bundler
       end
 
       @specs.each do |spec|
-        if spec.ready_to_enqueue? && spec.dependencies_installed?(installed_specs)
+        next unless spec.ready_to_enqueue?
+
+        if !spec.has_extensions? || spec.dependencies_installed?(installed_specs)
           spec.state = :enqueued
           worker_pool.enq spec
         end

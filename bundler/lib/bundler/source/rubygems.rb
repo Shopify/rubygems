@@ -16,6 +16,7 @@ module Bundler
         @options = options
         @remotes = []
         @dependency_names = []
+        @installer_cache = {}
         @allow_remote = false
         @allow_cached = false
         @allow_local = options["allow_local"] || false
@@ -162,21 +163,11 @@ module Bundler
         end
       end
 
-      def install(spec, options = {})
-        if (spec.default_gem? && !cached_built_in_gem(spec, local: options[:local])) || (installed?(spec) && !options[:force])
-          print_using_message "Using #{version_message(spec, options[:previous_spec])}"
-          return nil # no post-install message
-        end
-
-        path = fetch_gem_if_possible(spec, options[:previous_spec])
-        raise GemNotFound, "Could not find #{spec.file_name} for installation" unless path
-
-        return if Bundler.settings[:no_install]
+      def gem_installer(spec, path, options = {})
+        require_relative "../rubygems_gem_installer"
 
         install_path = rubygems_dir
         bin_path     = Bundler.system_bindir
-
-        require_relative "../rubygems_gem_installer"
 
         installer = Bundler::RubyGemsGemInstaller.at(
           path,
@@ -189,6 +180,21 @@ module Bundler
           build_args: options[:build_args],
           bundler_extension_cache_path: extension_cache_path(spec)
         )
+        @installer_cache[spec.name] = installer
+      end
+
+      def download_and_extract(spec, options = {})
+        if (spec.default_gem? && !cached_built_in_gem(spec, local: options[:local])) || (installed?(spec) && !options[:force])
+          print_using_message "Using #{version_message(spec, options[:previous_spec])}"
+          return nil # no post-install message
+        end
+
+        path = fetch_gem_if_possible(spec, options[:previous_spec])
+        raise GemNotFound, "Could not find #{spec.file_name} for installation" unless path
+
+        return if Bundler.settings[:no_install]
+
+        installer = gem_installer(spec, path, options)
 
         if spec.remote
           s = begin
@@ -204,6 +210,18 @@ module Bundler
 
           spec.__swap__(s)
         end
+
+        installer.extract
+      end
+
+      def install(spec, options = {})
+        return if Bundler.settings[:no_install]
+
+        if (spec.default_gem? && !cached_built_in_gem(spec, local: options[:local])) || (installed?(spec) && !options[:force])
+          return
+        end
+
+        installer = @installer_cache.fetch(spec.name)
 
         spec.source.checksum_store.register(spec, installer.gem_checksum)
 

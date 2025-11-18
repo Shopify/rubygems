@@ -190,7 +190,15 @@ module Bundler
       force = options[:force]
       local = options[:local] || options[:"prefer-local"]
       jobs = installation_parallelization
-      spec_installations = ParallelInstaller.call(self, @definition.specs, jobs, standalone, force, local: local)
+      spec_installations = nil
+      Vernier.profile(out: "idea.json", interval: 100, allocation_interval: 10) do
+      # result = Benchmark.ms do
+        spec_installations = ParallelInstaller.call(self, @definition.specs, jobs, standalone, force, local: local)
+      end
+      # end
+
+      # puts "Downloaded and installed gems in #{result}ms"
+
       spec_installations.each do |installation|
         post_install_messages[installation.name] = installation.post_install_message if installation.has_post_install_message?
       end
