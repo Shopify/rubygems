@@ -90,6 +90,7 @@ module Spec
         "spec/update/gems/fund_spec.rb",
         "spec/bundler/stub_specification_spec.rb",
         "spec/bundler/retry_spec.rb",
+        "spec/bundler/installer/parallel_installer_spec.rb",
         "spec/bundler/installer/spec_installation_spec.rb",
         "spec/bundler/spec_set_spec.rb",
         "spec/quality_es_spec.rb",
