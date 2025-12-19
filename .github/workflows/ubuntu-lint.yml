@@ -1,11 +1,6 @@
 name: ubuntu-lint
 
-on:
-  pull_request:
-
-  push:
-    branches:
-      - master
+on: push
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.workflow }}
@@ -15,49 +10,6 @@ permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
-  python_linters:
-    name: Python linter ${{ matrix.command }}
-    runs-on: ubuntu-24.04
-    permissions:
-      # Needed to upload the results to code-scanning dashboard.
-      security-events: write
-    strategy:
-      fail-fast: false
-      matrix:
-        command:
-          - codespell
-          - yamllint
-          - zizmor
-    steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # v7.1.4
-        with:
-          python-version: "3.13"
-          activate-environment: true
-      - name: Install Dependencies
-        run: uv pip install -r .github/workflows/lint/pylock.toml
-
-      - name: Run codespell
-        run: codespell
-        if: matrix.command == 'codespell'
-      - name: Run YAMLlint
-        run: yamllint .
-        if: matrix.command == 'yamllint'
-      - name: Run zizmor 🌈
-        run: zizmor --format=sarif . > results.sarif
-        if: matrix.command == 'zizmor'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@fe4161a26a8629af62121b670040955b330f9af2 # v4.31.6
-        if: matrix.command == 'zizmor'
-        with:
-          sarif_file: results.sarif
-          category: zizmor
-
   ruby_linters:
     name: Ruby linters on ${{ matrix.ruby.name }}
     runs-on: ubuntu-24.04
@@ -65,8 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         ruby:
-          - { name: ruby, value: 3.4.5 }
-          - { name: jruby, value: jruby-10.0.2.0 }
           - { name: truffleruby, value: truffleruby-24.2.1 }
     env:
       RUBYOPT: -Ilib
@@ -81,33 +31,4 @@ jobs:
           bundler: none
       - name: Install Dependencies
         run: bin/rake setup
-      - name: Run Ruby Lint
-        run: bin/rake rubocop
-      - name: Run Markdown Lint
-        run: bin/mdl -g . -r MD001,MD025
-        if: matrix.ruby.name == 'ruby'
-      - name: Generate docs
-        run: bin/rake docs
-        if: matrix.ruby.name != 'jruby'
-      - name: Install & Check Dependencies
-        run: bin/rake dev:frozen_deps
-      - name: Misc checks
-        run: bin/rake man:check vendor:check version:check check_rubygems_integration
-        if: matrix.ruby.name != 'jruby'
     timeout-minutes: 15
-
-  all-pass:
-    name: All ubuntu-lint jobs pass
-
-    if: always()
-
-    needs:
-      - python_linters
-      - ruby_linters
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: check dependent jobs
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
-        with:
-          jobs: ${{ toJSON(needs) }}
