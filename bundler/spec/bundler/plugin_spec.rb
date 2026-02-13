@@ -272,6 +272,50 @@ RSpec.describe Bundler::Plugin do
     end
   end
 
+  describe "DSL plugin" do
+    it "extends the Bundler DSL the first time the plugin is installed" do
+      code = <<~RUBY
+        Bundler::Plugin::API.hook(Bundler::Plugin::Events::BUNDLER_DSL) do |dsl|
+          dsl.define_method(:override_dependency!) {}
+        end
+      RUBY
+
+      path = lib_path("foo-plugin")
+
+      build_lib "foo-plugin", path: path do |s|
+        s.write "plugins.rb", code
+      end
+
+      install_gemfile <<~G
+        plugin "foo-plugin", path: "#{path}"
+
+        override_dependency!
+      G
+    end
+
+    it "loads the plugin when it is already installed" do
+      code = <<~RUBY
+        Bundler::Plugin::API.hook(Bundler::Plugin::Events::BUNDLER_DSL) do |dsl|
+          dsl.define_method(:override_dependency!) {}
+        end
+      RUBY
+
+      path = lib_path("foo-plugin")
+
+      build_lib "foo-plugin", path: path do |s|
+        s.write "plugins.rb", code
+      end
+
+      install_gemfile <<~G
+        plugin "foo-plugin", path: "#{path}"
+
+        override_dependency!
+      G
+
+      bundle(:install)
+    end
+  end
+
   describe "#hook" do
     before do
       path = lib_path("foo-plugin")

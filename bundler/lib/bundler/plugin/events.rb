@@ -31,6 +31,13 @@ module Bundler
       end
 
       # @!parse
+      #   A hook called when the Gemfile is about to be evaluated.
+      #   If you'd like to extend the Bundler DSL, this is the hook your plugin would
+      #   need to hook into.
+      #   BUNDLER_DSL = "bundler-dsl"
+      define :BUNDLER_DSL, "bundler-dsl"
+
+      # @!parse
       #   A hook called before each individual gem is installed
       #   Includes a Bundler::ParallelInstaller::SpecInstallation.
       #   No state, error, post_install_message will be present as nothing has installed yet

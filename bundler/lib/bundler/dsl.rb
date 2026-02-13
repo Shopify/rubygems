@@ -44,6 +44,8 @@ module Bundler
     end
 
     def eval_gemfile(gemfile, contents = nil)
+      Plugin.hook(Plugin::Events::BUNDLER_DSL, self.class)
+
       with_gemfile(gemfile) do |current_gemfile|
         contents ||= Bundler.read_file(current_gemfile)
         instance_eval(contents, current_gemfile, 1)
