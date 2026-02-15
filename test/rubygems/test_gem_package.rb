@@ -190,7 +190,7 @@ class TestGemPackage < Gem::Package::TarTestCase
       File.symlink("../lib/code.rb", "lib/code_sym2.rb")
     rescue Errno::EACCES => e
       if Gem.win_platform?
-        pend "symlink - must be admin with no UAC on Windows"
+        pend "symlink - developer mode must be enabled on Windows"
       else
         raise e
       end
@@ -583,25 +583,45 @@ class TestGemPackage < Gem::Package::TarTestCase
       tar.add_symlink "lib/foo.rb", "../relative.rb", 0o644
     end
 
-    begin
-      package.extract_tar_gz tgz_io, @destination
-    rescue Errno::EACCES => e
-      if Gem.win_platform?
-        pend "symlink - must be admin with no UAC on Windows"
-      else
-        raise e
-      end
-    end
+    package.extract_tar_gz tgz_io, @destination
 
     extracted = File.join @destination, "lib/foo.rb"
     assert_path_exist extracted
-    assert_equal "../relative.rb",
-                 File.readlink(extracted)
+    if symlink_supported?
+      assert_equal "../relative.rb",
+                   File.readlink(extracted)
+    end
     assert_equal "hi",
+                 File.read(extracted),
+                 "should read file content either by following symlink or on Windows by reading copy"
+  end
+
+  def test_extract_tar_gz_symlink_directory
+    package = Gem::Package.new @gem
+    package.verify
+
+    tgz_io = util_tar_gz do |tar|
+      tar.add_symlink "link", "lib/orig", 0o644
+      tar.mkdir       "lib", 0o755
+      tar.mkdir       "lib/orig", 0o755
+      tar.add_file    "lib/orig/file.rb", 0o644 do |io|
+        io.write "ok"
+      end
+    end
+
+    package.extract_tar_gz tgz_io, @destination
+    extracted = File.join @destination, "link/file.rb"
+    assert_path_exist extracted
+    if symlink_supported?
+      assert_equal "lib/orig",
+                   File.readlink(File.dirname(extracted))
+    end
+    assert_equal "ok",
                  File.read(extracted)
   end
 
   def test_extract_symlink_into_symlink_dir
+    pend "Symlinks not supported or not enabled" unless symlink_supported?
     package = Gem::Package.new @gem
     tgz_io = util_tar_gz do |tar|
       tar.mkdir       "lib", 0o755
@@ -665,13 +685,9 @@ class TestGemPackage < Gem::Package::TarTestCase
     destination_subdir = File.join @destination, "subdir"
     FileUtils.mkdir_p destination_subdir
 
-    expected_exceptions = Gem.win_platform? ? [Gem::Package::SymlinkError, Errno::EACCES] : [Gem::Package::SymlinkError]
-
-    e = assert_raise(*expected_exceptions) do
+    e = assert_raise(Gem::Package::SymlinkError) do
       package.extract_tar_gz tgz_io, destination_subdir
     end
-
-    pend "symlink - must be admin with no UAC on Windows" if Errno::EACCES === e
 
     assert_equal("installing symlink 'lib/link' pointing to parent path #{@destination} of " \
                 "#{destination_subdir} is not allowed", e.message)
@@ -700,13 +716,9 @@ class TestGemPackage < Gem::Package::TarTestCase
       tar.add_symlink "link/dir", ".", 16_877
     end
 
-    expected_exceptions = Gem.win_platform? ? [Gem::Package::SymlinkError, Errno::EACCES] : [Gem::Package::SymlinkError]
-
-    e = assert_raise(*expected_exceptions) do
+    e = assert_raise(Gem::Package::SymlinkError) do
       package.extract_tar_gz tgz_io, destination_subdir
     end
-
-    pend "symlink - must be admin with no UAC on Windows" if Errno::EACCES === e
 
     assert_equal("installing symlink 'link' pointing to parent path #{destination_user_dir} of " \
                 "#{destination_subdir} is not allowed", e.message)
