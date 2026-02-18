@@ -59,7 +59,32 @@ jobs:
           category: zizmor
 
   ruby_linters:
-    name: Ruby linters on ${{ matrix.ruby.name }}
+    name: Ruby linters
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+    env:
+      RUBYOPT: -Ilib
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup ruby
+        uses: ruby/setup-ruby@8d27f39a5e7ad39aebbcbd1324f7af020229645c # v1.287.0
+        with:
+          ruby-version: ruby
+          bundler: none
+      - name: Install Dependencies
+        run: bin/rake setup
+      - name: Run Ruby Lint
+        run: bin/rake rubocop
+      - name: Run Markdown Lint
+        run: bin/mdl -g . -r MD001,MD025
+      - name: Generate docs
+        run: bin/rake docs
+
+  check_misc:
+    name: Check misc on ${{ matrix.ruby.name }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -79,16 +104,6 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby.value }}
           bundler: none
-      - name: Install Dependencies
-        run: bin/rake setup
-      - name: Run Ruby Lint
-        run: bin/rake rubocop
-      - name: Run Markdown Lint
-        run: bin/mdl -g . -r MD001,MD025
-        if: matrix.ruby.name == 'ruby'
-      - name: Generate docs
-        run: bin/rake docs
-        if: matrix.ruby.name != 'jruby'
       - name: Install & Check Dependencies
         run: bin/rake dev:frozen_deps
       - name: Misc checks
@@ -104,6 +119,7 @@ jobs:
     needs:
       - python_linters
       - ruby_linters
+      - check_misc
     runs-on: ubuntu-latest
 
     steps:
