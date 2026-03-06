@@ -4,6 +4,8 @@ on:
   pull_request:
 
   push:
+    branches:
+      - master
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.workflow }}
@@ -61,11 +63,6 @@ jobs:
           bundler: none
       - name: Install Dependencies
         run: bin/rake setup
-      - name: Run Test with non-Admin user
-        run: |
-          gem inst win32-process --no-doc --conservative
-          ruby bin/windows_run_as_user ruby -S rake test
-        if: matrix.symlink == 'off'
       - name: Run Test
         run: bin/rake test
         if: matrix.ruby.name != 'truffleruby' && matrix.ruby.name != 'jruby' && matrix.symlink != 'off'
@@ -78,6 +75,11 @@ jobs:
       - name: Run Test (Truffleruby)
         run: TRUFFLERUBYOPT="--experimental-options --testing-rubygems" bin/rake test
         if: matrix.ruby.name == 'truffleruby'
+      - name: Run Test with non-Admin user
+        run: |
+          gem inst win32-process --no-doc --conservative
+          ruby bin/windows_run_as_user ruby -S rake test
+        if: matrix.symlink == 'off'
 
     timeout-minutes: 60
 

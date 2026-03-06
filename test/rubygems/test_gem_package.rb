@@ -175,6 +175,9 @@ class TestGemPackage < Gem::Package::TarTestCase
   end
 
   def test_add_files_symlink
+    unless symlink_supported?
+      omit("symlink - developer mode must be enabled on Windows")
+    end
     spec = Gem::Specification.new
     spec.files = %w[lib/code.rb lib/code_sym.rb lib/code_sym2.rb]
 
@@ -185,16 +188,8 @@ class TestGemPackage < Gem::Package::TarTestCase
     end
 
     # NOTE: 'code.rb' is correct, because it's relative to lib/code_sym.rb
-    begin
-      File.symlink("code.rb", "lib/code_sym.rb")
-      File.symlink("../lib/code.rb", "lib/code_sym2.rb")
-    rescue Errno::EACCES => e
-      if Gem.win_platform?
-        pend "symlink - developer mode must be enabled on Windows"
-      else
-        raise e
-      end
-    end
+    File.symlink("code.rb", "lib/code_sym.rb")
+    File.symlink("../lib/code.rb", "lib/code_sym2.rb")
 
     package = Gem::Package.new "bogus.gem"
     package.spec = spec
@@ -621,7 +616,7 @@ class TestGemPackage < Gem::Package::TarTestCase
   end
 
   def test_extract_symlink_into_symlink_dir
-    pend "Symlinks not supported or not enabled" unless symlink_supported?
+    omit "Symlinks not supported or not enabled" unless symlink_supported?
     package = Gem::Package.new @gem
     tgz_io = util_tar_gz do |tar|
       tar.mkdir       "lib", 0o755

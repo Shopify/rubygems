@@ -470,7 +470,7 @@ EOM
 
     symlinks.each do |name, target, destination, real_destination|
       if File.exist?(real_destination)
-        create_symlink_safe(target, destination)
+        create_symlink(target, destination)
       else
         alert_warning "#{@spec.full_name} ships with a dangling symlink named #{name} pointing to missing #{target} file. Ignoring"
       end
@@ -726,14 +726,19 @@ EOM
     bytes
   end
 
-  # Create a symlink and fallback to copy the file or directory on Windows,
-  # where symlink creation needs special privileges in form of the Developer Mode.
-  def create_symlink_safe(old_name, new_name) # :nodoc:
-    File.symlink(old_name, new_name)
-  rescue Errno::EACCES
-    raise unless Gem.win_platform?
-    from = File.expand_path(old_name, File.dirname(new_name))
-    FileUtils.cp_r(from, new_name)
+  if Gem.win_platform?
+    # Create a symlink and fallback to copy the file or directory on Windows,
+    # where symlink creation needs special privileges in form of the Developer Mode.
+    def create_symlink(old_name, new_name)
+      File.symlink(old_name, new_name)
+    rescue Errno::EACCES
+      from = File.expand_path(old_name, File.dirname(new_name))
+      FileUtils.cp_r(from, new_name)
+    end
+  else
+    def create_symlink(old_name, new_name)
+      File.symlink(old_name, new_name)
+    end
   end
 end
 

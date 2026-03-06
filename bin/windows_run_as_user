@@ -1,30 +1,36 @@
 require "win32/process"
 require "rbconfig"
 
-TESTUSER = "testuser"
+testuser = "testuser"
+testpassword = "Password123+"
 
-system("net user #{TESTUSER} /del 2>NUL")
-system("net user #{TESTUSER} \"Password123+\" /add") || raise
-system("icacls . /grant #{TESTUSER}:(OI)(CI)(IO)(F)")
+# Remove a previous test user if present
+system("net user #{testuser} /del 2>NUL")
+# Create a new non-admin user
+system("net user #{testuser} \"#{testpassword}\" /add")
+# Give the new user full access permission on the working directory
+system("icacls . /grant #{testuser}:(OI)(CI)(IO)F")
 
-stdout_read, stdout_write = IO.pipe
-cmd = ARGV.join(" ")
-env = {
+pinfo = nil
+IO.pipe do |stdout_read, stdout_write|
+  cmd = ARGV.join(" ")
+  env = {
     "TMP" => "#{Dir.pwd}/tmp",
     "TEMP" => "#{Dir.pwd}/tmp"
-}
-pinfo = Process.create command_line: cmd,
-    with_logon: TESTUSER,
-    password: "Password123+",
+  }
+  pinfo = Process.create command_line: cmd,
+    with_logon: testuser,
+    password: testpassword,
     cwd: Dir.pwd,
     environment: ENV.to_h.merge(env).map{|k,v| "#{k}=#{v}" },
     startup_info: { stdout: stdout_write, stderr: stdout_write }
 
-stdout_write.close
-out = stdout_read.read
-puts out
+  stdout_write.close
+  out = stdout_read.read
+  puts out
+end
 
 # Wait for process to terminate
-sleep 0.1 while !(ecode=Process.get_exitcode(pinfo.process_id))
+sleep 1 while !(ecode=Process.get_exitcode(pinfo.process_id))
 
 exit ecode

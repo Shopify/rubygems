@@ -763,7 +763,7 @@ class TestGemInstaller < Gem::InstallerTestCase
       assert_empty errors
     else
       assert_match(/Unable to use symlinks, installing wrapper/i,
-                    errors.to_s)
+                   errors.to_s)
     end
     assert_empty @ui.output
   end

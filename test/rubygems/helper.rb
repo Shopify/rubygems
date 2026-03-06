@@ -1268,10 +1268,10 @@ Also, a list:
     if @@symlink_supported.nil?
       begin
         File.symlink(File.join(@tempdir, "a"), File.join(@tempdir, "b"))
-        File.unlink(File.join(@tempdir, "b"))
       rescue NotImplementedError, SystemCallError
         @@symlink_supported = false
       else
+        File.unlink(File.join(@tempdir, "b"))
         @@symlink_supported = true
       end
     end
