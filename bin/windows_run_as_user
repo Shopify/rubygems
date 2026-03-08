@@ -9,8 +9,6 @@ testpassword = "Password123+"
 system("net user #{testuser} /del 2>NUL")
 # Create a new non-admin user
 system("net user #{testuser} \"#{testpassword}\" /add")
-# Give the new user full access permission on the working directory
-system("icacls . /grant #{testuser}:(OI)(CI)(IO)F")
 
 pinfo = nil
 IO.pipe do |stdout_read, stdout_write|
