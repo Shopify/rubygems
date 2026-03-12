@@ -24,6 +24,10 @@ module Bundler
         state == :enqueued
       end
 
+      def enqueue_with_priority?
+        state == :installable && spec.extensions.any?
+      end
+
       def failed?
         state == :failed
       end
@@ -194,7 +198,7 @@ module Bundler
         spec.state = :installable
       end
 
-      worker_pool.enq(spec)
+      worker_pool.enq(spec, priority: spec.enqueue_with_priority?)
     end
 
     def finished_installing?
@@ -231,6 +235,7 @@ module Bundler
     # previously installed specifications. We continue until all specs
     # are installed.
     def enqueue_specs(installed_specs)
+      $S = 1
       @specs.each do |spec|
         if spec.installed?
           installed_specs[spec.name] = true
