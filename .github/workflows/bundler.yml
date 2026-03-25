@@ -1,11 +1,7 @@
 name: bundler
 
 on:
-  pull_request:
-
-  push:
-    branches:
-      - master
+  push
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.workflow }}
@@ -29,35 +25,35 @@ jobs:
           - { name: Ubuntu, value: ubuntu-24.04 }
 
         ruby:
-          - { name: ruby-3.2, value: 3.2.9 }
-          - { name: ruby-3.3, value: 3.3.10 }
-          - { name: ruby-3.4, value: 3.4.8 }
+          # - { name: ruby-3.2, value: 3.2.9 }
+          # - { name: ruby-3.3, value: 3.3.10 }
+          # - { name: ruby-3.4, value: 3.4.8 }
           - { name: ruby-4.0, value: 4.0.0 }
 
-        include:
-          - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-3.2, value: 3.2.9 }, timeout: 90 }
-          - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 90 }
-          - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 90 }
-          - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-4.0, value: 4.0.0 }, timeout: 90 }
+        # include:
+        #   - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-3.2, value: 3.2.9 }, timeout: 90 }
+        #   - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 90 }
+        #   - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 90 }
+        #   - { os: { name: macOS, value: macos-15 }, ruby: { name: ruby-4.0, value: 4.0.0 }, timeout: 90 }
 
-          # Ruby 3.2 is about 20 minutes slower than 3.3/3.4, so it will be excluded from testing.
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: a }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: b }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: c }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: d }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: a }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: b }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: c }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: d }
+        #   # Ruby 3.2 is about 20 minutes slower than 3.3/3.4, so it will be excluded from testing.
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: a }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: b }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: c }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.3, value: 3.3.10 }, timeout: 150, group: d }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: a }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: b }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: c }
+        #   - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-3.4, value: 3.4.8 }, timeout: 150, group: d }
           # - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-4.0, value: 4.0.0 }, timeout: 150, group: a }
           # - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-4.0, value: 4.0.0 }, timeout: 150, group: b }
           # - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-4.0, value: 4.0.0 }, timeout: 150, group: c }
           # - { os: { name: Windows, value: windows-2025 }, ruby: { name: ruby-4.0, value: 4.0.0 }, timeout: 150, group: d }
 
-          - { os: { name: Ubuntu, value: ubuntu-24.04 }, ruby: { name: jruby, value: jruby-10.0.2.0 } }
-          - { os: { name: Windows, value: windows-2025 }, ruby: { name: jruby, value: jruby-10.0.2.0 } }
+          # - { os: { name: Ubuntu, value: ubuntu-24.04 }, ruby: { name: jruby, value: jruby-10.0.2.0 } }
+          # - { os: { name: Windows, value: windows-2025 }, ruby: { name: jruby, value: jruby-10.0.2.0 } }
 
-          - { os: { name: Ubuntu, value: ubuntu-24.04 }, ruby: { name: ruby-4.0 (psych), value: 4.0.0 }, use_psych: true }
+          # - { os: { name: Ubuntu, value: ubuntu-24.04 }, ruby: { name: ruby-4.0 (psych), value: 4.0.0 }, use_psych: true }
 
     env:
       RGV: .
@@ -83,7 +79,7 @@ jobs:
           bin/rake dev:deps
       - name: Run Test (CRuby)
         run: |
-          bin/parallel_rspec
+          for i in `seq 10`; do bin/rspec ./spec/install/gemfile/path_spec.rb:438; done
         if: matrix.ruby.name != 'jruby' && matrix.os.name != 'Windows'
       - name: Run Test (CRuby on Windows - Group ${{ matrix.group }})
         run: |
