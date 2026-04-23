@@ -103,7 +103,7 @@ module Bundler
     end
 
     def bundler_checksum
-      return [] if Bundler.gem_version.to_s.end_with?(".dev")
+      return [] unless released_bundler?
 
       bundler_spec = definition.sources.metadata_source.specs.search(["bundler", Bundler.gem_version]).last
       return [] unless File.exist?(bundler_spec.cache_file)
@@ -114,6 +114,12 @@ module Bundler
       definition.sources.metadata_source.checksum_store.register(bundler_spec, Checksum.from_gem_package(package))
 
       [definition.sources.metadata_source.checksum_store.to_lock(bundler_spec)]
+    end
+
+    def released_bundler?
+      return false if Bundler.gem_version.prerelease?
+      # Released gem specs live under .../specifications/; source checkouts don't.
+      Gem.loaded_specs["bundler"]&.loaded_from.to_s.include?("/specifications/")
     end
   end
 end
