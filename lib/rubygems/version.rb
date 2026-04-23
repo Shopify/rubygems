@@ -346,7 +346,8 @@ class Gem::Version
   # other types may raise an exception.
 
   def <=>(other)
-    if Gem::Version === other
+    case other
+    when Gem::Version
       # Fast path for comparison when available.
       if @sort_key && other.sort_key
         return @sort_key <=> other.sort_key
@@ -394,7 +395,7 @@ class Gem::Version
       end
 
       0
-    elsif String === other
+    when String
       return unless self.class.correct?(other)
       self <=> self.class.new(other)
     end
