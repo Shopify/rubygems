@@ -9,7 +9,7 @@ module Bundler
     include ForcePlatform
 
     attr_reader :name, :version, :platform, :materialization
-    attr_accessor :source, :remote, :force_ruby_platform, :dependencies, :required_ruby_version, :required_rubygems_version, :overrides
+    attr_accessor :source, :remote, :force_ruby_platform, :dependencies, :required_ruby_version, :required_rubygems_version, :overrides, :real_platform
 
     #
     # For backwards compatibility with existing lockfiles, if the most specific
@@ -31,7 +31,22 @@ module Bundler
       lazy_spec.required_ruby_version = s.required_ruby_version
       lazy_spec.required_rubygems_version = s.required_rubygems_version
       lazy_spec.overrides = s.overrides if s.is_a?(LazySpecification)
+      lazy_spec.real_platform = s.real_platform if s.respond_to?(:real_platform)
       lazy_spec
+    end
+
+    def content_addressable?
+      !@real_platform.nil?
+    end
+
+    # Match using the real platform from metadata when content-addressable,
+    # since @platform holds the SHA prefix rather than a real platform.
+    def installable_on_platform?(target_platform)
+      return super unless content_addressable?
+
+      target_platform.nil? ||
+        target_platform == Gem::Platform::RUBY ||
+        @real_platform === Gem::Platform.new(target_platform)
     end
 
     def initialize(name, version, platform, source = nil, **materialization_options)
