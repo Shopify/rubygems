@@ -139,6 +139,15 @@ class Gem::BasicSpecification
     @full_gem_path ||= find_full_gem_path
   end
 
+  def content_addressed?
+    platform != Gem::Platform::RUBY &&
+      !platform.nil? &&
+      respond_to?(:ruby_minor) &&
+      !ruby_minor.nil? &&
+      respond_to?(:checksum) &&
+      !checksum.nil?
+  end
+
   ##
   # Returns the full name (name-version) of this Gem.  Platform information
   # is included (name-version-platform) if it is specified and not the
@@ -147,6 +156,8 @@ class Gem::BasicSpecification
   def full_name
     if platform == Gem::Platform::RUBY || platform.nil?
       "#{name}-#{version}"
+    elsif content_addressed?
+      "#{name}-#{version}-#{checksum}"
     else
       "#{name}-#{version}-#{platform}"
     end

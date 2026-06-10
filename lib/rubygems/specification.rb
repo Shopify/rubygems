@@ -13,6 +13,7 @@ require_relative "platform"
 require_relative "specification_record"
 
 require "rbconfig"
+require "digest"
 
 ##
 # The Specification class contains the information for a gem.  Typically
@@ -148,6 +149,8 @@ class Gem::Specification < Gem::BasicSpecification
     homepage: nil,
     licenses: [],
     metadata: {},
+    checksum: nil,
+    ruby_minor: nil,
     name: nil,
     platform: Gem::Platform::RUBY,
     post_install_message: nil,
@@ -322,6 +325,10 @@ class Gem::Specification < Gem::BasicSpecification
   #   spec.homepage = 'https://github.com/ruby/rake'
 
   attr_accessor :homepage
+
+  attr_accessor :checksum
+
+  attr_accessor :ruby_minor
 
   ##
   # The license for this gem.
@@ -674,6 +681,36 @@ class Gem::Specification < Gem::BasicSpecification
         [op, v]
       end
     end
+  end
+
+  def calculate_ruby_minor
+    requirement = required_ruby_version
+    constraints = requirement.requirements
+
+    return nil unless constraints.size == 1
+
+    operator, version = constraints.first
+    return nil unless operator == "~>"
+
+    segments = version.segments
+    return nil unless segments.size >= 3
+
+    segments.first(2).join(".")
+  end
+
+  def calculate_checksum(files)
+    digest = Digest::SHA256.new
+
+    digest << name
+    digest << version.to_s
+    digest << platform.to_s
+    digest << required_ruby_version.to_s
+
+    files.each do |path|
+      digest << File.binread(path)
+    end
+
+    digest.hexdigest[0, 10]
   end
 
   ##
@@ -1328,6 +1365,8 @@ class Gem::Specification < Gem::BasicSpecification
     # offset due to has_rdoc removal
     spec.instance_variable_set :@licenses,                  array[17]
     spec.instance_variable_set :@metadata,                  array[18]
+    spec.instance_variable_set :@checksum,                  array[19]
+    spec.instance_variable_set :@ruby_minor,                array[20]
     spec.instance_variable_set :@loaded,                    false
     spec.instance_variable_set :@activated,                 false
 
@@ -1372,6 +1411,8 @@ class Gem::Specification < Gem::BasicSpecification
       @new_platform,
       @licenses,
       @metadata,
+      @checksum,
+      @ruby_minor
     ]
   end
 
