@@ -196,6 +196,14 @@ class Gem::StubSpecification < Gem::BasicSpecification
   def spec
     @spec ||= loaded_spec if @data
     @spec ||= Gem::Specification.load(loaded_from)
+    # The content address lives on the stub line, not in the gemspec body, so the
+    # freshly-evalled full spec wouldn't know its content-addressed full_name
+    # (and would compute name-version-platform paths that don't exist on disk).
+    # Carry it over from the stub.
+    if @spec && !@spec.content_address && (ca = content_address) && !ca.empty?
+      @spec.content_address = ca
+    end
+    @spec
   end
   alias_method :to_spec, :spec
 

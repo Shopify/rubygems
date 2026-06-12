@@ -158,6 +158,17 @@ module Bundler
 
       if use_exact_resolved_specifications?
         spec = materialize(self) {|specs| choose_compatible(specs, fallback_to_non_installable: false) }
+
+        # The exact locked full_name wasn't found in the index (materialize returns
+        # self). This happens for content-addressable gems: the installed full_name
+        # is name-version-<sha>, while the lockfile pins the portable
+        # name-version-platform. Retry by name+version and let platform/ruby
+        # selection pick the right binary.
+        if spec.equal?(self)
+          by_name = materialize([name, version]) {|specs| resolve_best_platform(specs) }
+          return by_name unless by_name.nil? || by_name.equal?(self)
+        end
+
         return spec if spec
 
         # Exact spec is incompatible; in frozen mode, try to find a compatible platform variant
