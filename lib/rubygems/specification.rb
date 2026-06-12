@@ -557,6 +557,27 @@ class Gem::Specification < Gem::BasicSpecification
   end
 
   ##
+  # Declares that this (precompiled) gem requires at least the given version of a
+  # named system component on the install host -- e.g. a libc, the C++ standard
+  # library, or the OS. Unlike a gem dependency, this is NOT resolved or fetched;
+  # it is a match constraint the host must already satisfy (like
+  # +required_ruby_version+). Clients that can't satisfy it skip the binary and
+  # fall back to building from source.
+  #
+  # Stored in +metadata+ under "system_requirement_<name>" -- the marshal-stable
+  # extension point -- and surfaced as a "<name>:<requirement>" token in the
+  # compact index.
+  #
+  # Usage:
+  #
+  #   spec.add_system_requirement 'glibc', '>= 2.34'
+  #   spec.add_system_requirement 'libstdcxx', '>= 3.4.30'
+
+  def add_system_requirement(name, *requirements)
+    metadata["system_requirement_#{name}"] = Gem::Requirement.new(*requirements).to_s
+  end
+
+  ##
   # Executables included in the gem.
   #
   # For example, the rake gem has rake as an executable. You don't specify the

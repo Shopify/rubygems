@@ -59,6 +59,7 @@ module Bundler
   autoload :Installer,              File.expand_path("bundler/installer", __dir__)
   autoload :LazySpecification,      File.expand_path("bundler/lazy_specification", __dir__)
   autoload :LockfileParser,         File.expand_path("bundler/lockfile_parser", __dir__)
+  autoload :SystemRequirements,     File.expand_path("bundler/system_requirements", __dir__)
   autoload :MatchRemoteMetadata,    File.expand_path("bundler/match_remote_metadata", __dir__)
   autoload :Materialization,        File.expand_path("bundler/materialization", __dir__)
   autoload :NULL,                   File.expand_path("bundler/constants", __dir__)

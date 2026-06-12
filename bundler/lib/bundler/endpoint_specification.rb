@@ -142,6 +142,7 @@ module Bundler
     end
 
     def parse_metadata(data)
+      @system_requirements = {}
       unless data
         @required_ruby_version = nil
         @required_rubygems_version = nil
@@ -171,6 +172,12 @@ module Bundler
               nil
             end
           end
+        else
+          # A named system requirement (e.g. glibc, musl, libstdcxx) the host must
+          # already satisfy. Only names this client can detect are honored; others
+          # are ignored. Checked in MatchMetadata#matches_current_system_requirements?.
+          key = k.to_s
+          @system_requirements[key] = Gem::Requirement.new(v) if Bundler::SystemRequirements.known.include?(key)
         end
       end
     rescue StandardError => e

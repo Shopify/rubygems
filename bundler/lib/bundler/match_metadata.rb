@@ -3,7 +3,7 @@
 module Bundler
   module MatchMetadata
     def matches_current_metadata?
-      matches_current_ruby? && matches_current_rubygems?
+      matches_current_ruby? && matches_current_rubygems? && matches_current_system_requirements?
     end
 
     def matches_current_ruby?
@@ -14,8 +14,23 @@ module Bundler
       @required_rubygems_version.satisfied_by?(Gem.rubygems_version)
     end
 
+    # A precompiled binary may declare named system requirements (e.g. `glibc:`,
+    # `musl:`, `libstdcxx:`) in the content-addressable compact index — minimum
+    # versions the install host must already provide. If the host can't satisfy any
+    # of them, the candidate is rejected so resolution falls back to the source
+    # ("ruby" platform) gem instead of installing a binary that won't load.
+    def matches_current_system_requirements?
+      requirements = defined?(@system_requirements) ? @system_requirements : nil
+      return true if requirements.nil? || requirements.empty?
+
+      requirements.all? do |name, requirement|
+        Bundler::SystemRequirements.satisfied?(name, requirement)
+      end
+    end
+
     def matches_current_metadata_with_overrides?(overrides)
-      matches_current_ruby_with_overrides?(overrides) && matches_current_rubygems_with_overrides?(overrides)
+      matches_current_ruby_with_overrides?(overrides) && matches_current_rubygems_with_overrides?(overrides) &&
+        matches_current_system_requirements?
     end
 
     def matches_current_ruby_with_overrides?(overrides)
