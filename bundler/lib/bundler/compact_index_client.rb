@@ -30,6 +30,12 @@ module Bundler
     SUPPORTED_DIGESTS = { "sha-256" => :SHA256 }.freeze
     DEBUG_MUTEX = Thread::Mutex.new
 
+    # API versions this client understands, newest first. v2 adds the
+    # content-addressable ("skinny") binary namespace under `/v2/`.
+    SUPPORTED_API_VERSIONS = [2, 1].freeze
+    API_VERSION_MARKER = "api_version"
+
+
     # info returns an Array of INFO Arrays. Each INFO Array has the following indices:
     INFO_NAME = 0
     INFO_VERSION = 1
@@ -49,9 +55,46 @@ module Bundler
     require_relative "compact_index_client/parser"
     require_relative "compact_index_client/updater"
 
-    def initialize(directory, fetcher = nil)
-      @cache = Cache.new(directory, fetcher)
-      @parser = Parser.new(@cache)
+    def initialize(directory, fetcher = nil, api_version: 1)
+      @directory = Pathname.new(directory).expand_path
+      @fetcher = fetcher
+      use_api_version(api_version)
+    end
+
+    attr_reader :api_version
+
+    # Determine, once per source, the newest compact index API version this
+    # source actually serves. Newer clients prefer v2 (`/v2/versions`,
+    # `/v2/info`); sources that only speak v1 answer the probe with a 404, so
+    # we transparently downgrade. The result is cached on disk so subsequent
+    # runs skip the probe (and so a v1-only source isn't re-probed every time).
+    #
+    # Only meaningful with a fetcher; read-only clients stay on the version
+    # they were constructed with.
+    def negotiate_api_version!
+      return @api_version unless @fetcher
+
+      cached = persisted_api_version
+      if cached
+        use_api_version(cached) unless cached == @api_version
+        return @api_version
+      end
+
+      SUPPORTED_API_VERSIONS.each do |version|
+        use_api_version(version)
+        begin
+          versions # probe: fetches /vN/versions (or /versions for v1)
+          persist_api_version(version)
+          break
+        rescue Bundler::Fetcher::FallbackError
+          # This source doesn't serve this API version (404). Try the next
+          # lower one; v1 is unprefixed and always exists for a compact index.
+          next unless version == SUPPORTED_API_VERSIONS.last
+          raise
+        end
+      end
+
+      @api_version
     end
 
     def names
@@ -87,6 +130,34 @@ module Bundler
     def reset!
       Bundler::CompactIndexClient.debug { "reset!" }
       @cache.reset!
+    end
+
+    private
+
+    def use_api_version(version)
+      version = 1 unless SUPPORTED_API_VERSIONS.include?(version)
+      @api_version = version
+      @cache = Cache.new(@directory, @fetcher, api_version: version)
+      @parser = Parser.new(@cache)
+    end
+
+    def api_version_marker_path
+      @directory.join(API_VERSION_MARKER)
+    end
+
+    def persisted_api_version
+      path = api_version_marker_path
+      return unless path.file?
+      version = path.read.to_i
+      SUPPORTED_API_VERSIONS.include?(version) ? version : nil
+    rescue StandardError
+      nil
+    end
+
+    def persist_api_version(version)
+      api_version_marker_path.write(version.to_s)
+    rescue StandardError
+      nil
     end
   end
 end

@@ -5,7 +5,7 @@ module Bundler
   class EndpointSpecification < Gem::Specification
     include MatchRemoteMetadata
 
-    attr_reader :name, :version, :platform, :checksum, :created_at
+    attr_reader :name, :version, :platform, :checksum, :created_at, :real_platform
     attr_writer :dependencies
     attr_accessor :remote, :locked_platform
 
@@ -21,11 +21,30 @@ module Bundler
       @loaded_from          = nil
       @remote_specification = nil
       @locked_platform = nil
+      @real_platform = nil
 
       parse_metadata(metadata)
     end
 
+    # A content-addressable ("skinny") binary: the version token carries a SHA
+    # prefix instead of a platform, and the real platform is supplied via the
+    # compact index `platform:` requirement.
+    def content_addressable?
+      !@real_platform.nil?
+    end
+
+    # For content-addressable specs, platform matching must use the real
+    # platform from metadata, not the SHA prefix stored in @platform.
+    def installable_on_platform?(target_platform)
+      return super unless content_addressable?
+
+      target_platform.nil? ||
+        target_platform == Gem::Platform::RUBY ||
+        @real_platform === Gem::Platform.new(target_platform)
+    end
+
     def insecurely_materialized?
+      return false if content_addressable?
       @locked_platform.to_s != @platform.to_s
     end
 
@@ -162,6 +181,10 @@ module Bundler
           @required_rubygems_version = Gem::Requirement.new(v)
         when "ruby"
           @required_ruby_version = Gem::Requirement.new(v)
+        when "platform"
+          # e.g. v == ["= x86_64-linux-musl"]; strip the requirement operator.
+          platform_string = Array(v).last.to_s.sub(/\A\s*=?\s*/, "")
+          @real_platform = Gem::Platform.new(platform_string) unless platform_string.empty?
         when "created_at"
           value = v.is_a?(Array) ? v.last : v
           if value.is_a?(String)

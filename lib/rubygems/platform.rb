@@ -10,6 +10,11 @@ class Gem::Platform
 
   attr_accessor :cpu, :os, :version
 
+  # For content-addressable ("skinny") binaries, the "platform" token is a
+  # 10-char hex prefix of the gem's SHA256 rather than a real cpu/os/version.
+  # It is kept in its own field so it never masquerades as an operating system.
+  attr_reader :content_address
+
   def self.local(refresh: false)
     return @local if @local && !refresh
     @local = begin
@@ -72,11 +77,44 @@ class Gem::Platform
     end
   end
 
+  ##
+  # A content-address "platform" is a 10-char hex prefix of a gem's SHA256
+  # checksum, used by content-addressable ("skinny") binaries. The real
+  # platform lives in the compact index `platform:` requirement instead of in
+  # the version token.
+
+  CONTENT_ADDRESS = /\A[0-9a-f]{10}\z/
+
+  def self.content_address?(string)
+    string.is_a?(String) && CONTENT_ADDRESS.match?(string)
+  end
+
+  def content_address?
+    !@content_address.nil?
+  end
+
   def initialize(arch)
+    @content_address = nil
+
     case arch
     when Array then
-      @cpu, @os, @version = arch
+      cpu, os, version = arch
+      # Round-trip a content address that was serialized via #to_a.
+      if cpu.nil? && version.nil? && Gem::Platform.content_address?(os)
+        @content_address = os
+      else
+        @cpu, @os, @version = cpu, os, version
+      end
     when String then
+      # Preserve content-address SHA prefixes verbatim (e.g. "ef716ba7a6").
+      # They have no cpu/os/version; otherwise they would normalize to
+      # os="unknown", destroying the hash used in filenames, lockfile
+      # entries, and download URLs.
+      if Gem::Platform.content_address?(arch)
+        @content_address = arch
+        return
+      end
+
       cpu, os = arch.sub(/-+$/, "").split("-", 2)
 
       @cpu = if cpu&.match?(/i\d86/)
@@ -122,17 +160,20 @@ class Gem::Platform
       @cpu = arch.cpu
       @os = arch.os
       @version = arch.version
+      @content_address = arch.content_address
     else
       raise ArgumentError, "invalid argument #{arch.inspect}"
     end
   end
 
   def to_a
+    return [nil, @content_address, nil] if content_address?
     [@cpu, @os, @version]
   end
 
   def to_s
-    to_a.compact.join(@cpu.nil? ? "" : "-")
+    return @content_address if content_address?
+    [@cpu, @os, @version].compact.join(@cpu.nil? ? "" : "-")
   end
 
   ##
@@ -171,13 +212,13 @@ class Gem::Platform
   # the same CPU, OS and version.
 
   def ==(other)
-    self.class === other && to_a == other.to_a
+    self.class === other && content_address == other.content_address && to_a == other.to_a
   end
 
   alias_method :eql?, :==
 
   def hash # :nodoc:
-    to_a.hash
+    [@content_address, @cpu, @os, @version].hash
   end
 
   ##
@@ -200,6 +241,12 @@ class Gem::Platform
 
   def ===(other)
     return nil unless Gem::Platform === other
+
+    # A content address only matches the identical content address; it never
+    # fuzzy-matches a real platform (and vice versa).
+    if content_address? || other.content_address?
+      return content_address == other.content_address
+    end
 
     # universal-mingw32 matches x64-mingw-ucrt
     return true if (@cpu == "universal" || other.cpu == "universal") &&
