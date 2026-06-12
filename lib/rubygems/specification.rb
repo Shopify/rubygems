@@ -2416,7 +2416,10 @@ class Gem::Specification < Gem::BasicSpecification
   def to_ruby
     result = []
     result << "# -*- encoding: utf-8 -*-"
-    result << "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{platform} #{raw_require_paths.join("\0")}"
+    stub = "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{platform} #{raw_require_paths.join("\0")}"
+    # content-addressable binaries carry the sha so the stub can rebuild full_name
+    stub += " #{content_address}" if content_address
+    result << stub
     result << "#{Gem::StubSpecification::PREFIX}#{extensions.join "\0"}" unless
       extensions.empty?
     result << nil

@@ -14,7 +14,7 @@ class Gem::StubSpecification < Gem::BasicSpecification
 
   class StubLine # :nodoc: all
     attr_reader :name, :version, :platform, :require_paths, :extensions,
-                :full_name
+                :full_name, :content_address
 
     NO_EXTENSIONS = [].freeze
 
@@ -34,7 +34,10 @@ class Gem::StubSpecification < Gem::BasicSpecification
     }.freeze
 
     def initialize(data, extensions)
-      parts          = data[PREFIX.length..-1].split(" ", 4)
+      # Fields: name version platform require_paths [content_address]
+      # The trailing content_address is present only for content-addressable
+      # ("skinny") binaries; old stubs have 4 fields and parse it as nil.
+      parts          = data[PREFIX.length..-1].split(" ", 5)
       @name          = -parts[0]
       @version       = if Gem::Version.correct?(parts[1])
         Gem::Version.new(parts[1])
@@ -42,15 +45,18 @@ class Gem::StubSpecification < Gem::BasicSpecification
         Gem::Version.new(0)
       end
 
-      @platform      = Gem::Platform.new parts[2]
-      @extensions    = extensions
-      @full_name     = if platform == Gem::Platform::RUBY
+      @platform         = Gem::Platform.new parts[2]
+      @extensions       = extensions
+      @content_address  = parts[4]
+      @full_name        = if @content_address
+        "#{name}-#{version}-#{@content_address}"
+      elsif platform == Gem::Platform::RUBY
         "#{name}-#{version}"
       else
         "#{name}-#{version}-#{platform}"
       end
 
-      path_list = parts.last
+      path_list = parts[3]
       @require_paths = REQUIRE_PATH_LIST[path_list] || path_list.split("\0").map! do |x|
         REQUIRE_PATHS[x] || x
       end
@@ -178,6 +184,10 @@ class Gem::StubSpecification < Gem::BasicSpecification
 
   def full_name
     data.full_name
+  end
+
+  def content_address
+    data.content_address
   end
 
   ##
