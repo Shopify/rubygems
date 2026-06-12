@@ -1,0 +1,5 @@
+/tmp/
+/pkg/
+/lib/hola/*.bundle
+/lib/hola/*.so
+*.gem

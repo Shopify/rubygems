@@ -30,6 +30,14 @@ class Gem::BasicSpecification
 
   attr_writer :full_gem_path # :nodoc:
 
+  ##
+  # The content address (first 10 hex of the gem's sha256) for a content-
+  # addressable ("skinny") binary. When set, it replaces the platform in
+  # +full_name+, so the gem downloads/installs/stubs under name-version-<sha>.
+  # nil for ordinary gems.
+
+  attr_accessor :content_address # :nodoc:
+
   def initialize
     internal_init
   end
@@ -145,7 +153,9 @@ class Gem::BasicSpecification
   # default Ruby platform.
 
   def full_name
-    if platform == Gem::Platform::RUBY || platform.nil?
+    if content_address
+      "#{name}-#{version}-#{content_address}"
+    elsif platform == Gem::Platform::RUBY || platform.nil?
       "#{name}-#{version}"
     else
       "#{name}-#{version}-#{platform}"

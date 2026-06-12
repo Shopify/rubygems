@@ -1,0 +1,5 @@
+require "rake/extensiontask"
+spec = Gem::Specification.load("hola.gemspec")
+Rake::ExtensionTask.new("hola", spec) do |ext|
+  ext.lib_dir = "lib/hola"
+end
