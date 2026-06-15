@@ -5,6 +5,6 @@ Gem::Specification.new do |s|
   s.authors     = ["poc"]
   s.files       = Dir["lib/**/*.rb"] + Dir["ext/**/*"]
   s.extensions  = ["ext/hola/extconf.rb"]
-  # A single Ruby minor makes this a "skinny" binary -> content-addressable.
+  # A single Ruby ABI makes this a "skinny" binary -> content-addressable.
   s.required_ruby_version = "~> 3.3.0"
 end

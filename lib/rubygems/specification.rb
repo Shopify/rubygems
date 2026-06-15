@@ -558,22 +558,22 @@ class Gem::Specification < Gem::BasicSpecification
 
   ##
   # True for a "skinny" precompiled binary: a platformed gem pinned to a single
-  # Ruby minor series. These are content-addressed (name-version-<sha>) at build
-  # time so multiple per-Ruby builds of the same version+platform can coexist.
-  # Fat binaries (spanning many Ruby minors) and source gems are not.
+  # Ruby ABI. These are content-addressed (name-version-<sha>) at build time so
+  # multiple per-Ruby builds of the same version+platform can coexist. Fat
+  # binaries (spanning many Ruby ABIs) and source gems are not.
 
   def content_addressable?
     return false if platform.nil? || platform == Gem::Platform::RUBY
 
-    !content_addressable_ruby_minor.nil?
+    !content_addressable_ruby_abi.nil?
   end
 
   ##
   # The single "MAJOR.MINOR" Ruby series this gem targets, or nil if it spans
   # more than one. Recognizes both `~> X.Y.Z` and the `>= X.Y, < X.(Y+1).dev`
-  # range rake-compiler emits for single-Ruby native gems.
+  # range rake-compiler emits for single-ABI native gems.
 
-  def content_addressable_ruby_minor
+  def content_addressable_ruby_abi
     reqs = required_ruby_version.requirements
     return nil if reqs.empty?
 

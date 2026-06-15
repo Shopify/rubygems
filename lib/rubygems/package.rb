@@ -136,7 +136,7 @@ class Gem::Package
     package.spec = spec
     package.build skip_validation, strict_validation
 
-    # Content-address skinny binaries (platformed + single Ruby minor): rename
+    # Content-address skinny binaries (platformed + single Ruby ABI): rename
     # name-version-platform.gem to name-version-<sha10>.gem so multiple per-Ruby
     # builds of the same version+platform can coexist. Skipped when an explicit
     # output file name was requested.

@@ -3,7 +3,7 @@
 Manual, native-macOS (darwin) tests for **content-addressable ("skinny")
 precompiled gems**. 
 
-A *skinny* binary is a platformed gem pinned to a single Ruby minor (here the
+A *skinny* binary is a platformed gem pinned to a single Ruby ABI (here the
 demo's `required_ruby_version = "~> 3.3.0"`). These are built, named, installed,
 and resolved by **content address** — `name-version-<sha>`, where
 `<sha> = sha256(.gem)[0, 10]` — so multiple per-Ruby builds of the same
@@ -13,7 +13,7 @@ version+platform can coexist and the right one is fetched at resolve time.
 
 | File | Purpose |
 | --- | --- |
-| `demo/` | A tiny native gem (`hola`) with a one-Ruby-minor `required_ruby_version`, so it builds as a skinny/content-addressable binary. |
+| `demo/` | A tiny native gem (`hola`) with a one-ABI `required_ruby_version`, so it builds as a skinny/content-addressable binary. |
 | `fake_compact_index.rb` | ~40-line, dependency-free threaded HTTP server that serves a directory as a compact index (`/v2/versions`, `/v2/info/<gem>`, `/gems/*.gem`). |
 | `test_local.sh` | Builds + installs the gem and exercises `bundle install --local`. |
 | `test_remote.sh` | Renders compact-index files, starts the fake server, and exercises a real remote `bundle install`. |
@@ -87,6 +87,6 @@ On the **remote** path the gem currently installs into
 `gems/hola-1.0.0-<real-platform>/`, whereas the **`--local`** path installs into
 `gems/hola-1.0.0-<sha>/`. Both are internally consistent and work for a single
 active Ruby, but they disagree on the on-disk directory name. True
-side-by-side coexistence of two Ruby-minor builds on the remote path would
+side-by-side coexistence of two Ruby ABI builds on the remote path would
 require Bundler's installer to preserve the content address into the install
 dir like `gem install` does.

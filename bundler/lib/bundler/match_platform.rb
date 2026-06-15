@@ -26,7 +26,7 @@ module Bundler
       spec.respond_to?(:content_addressable?) && spec.content_addressable?
     end
 
-    # A skinny binary targets exactly one Ruby minor (e.g. `~> 3.2.0`). Those
+    # A skinny binary targets exactly one Ruby ABI (e.g. `~> 3.2.0`). Those
     # ranges are disjoint, so at most one skinny variant per (gem, version,
     # platform) is compatible with the running Ruby. Only a Ruby-compatible
     # skinny may displace the fat/ruby fallback.
