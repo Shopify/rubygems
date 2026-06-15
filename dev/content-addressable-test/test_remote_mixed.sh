@@ -32,6 +32,11 @@ PORT_V1="${PORT_V1:-8912}"
 
 export PATH="$RUBY_PREFIX/bin:$PATH"
 export GEM_HOME="$WORK/gemhome" GEM_PATH="$WORK/gemhome"
+# Isolate Bundler's user cache under $WORK so each run is COLD. Otherwise the
+# per-source `api_version` marker (and cached info) persist in ~/.bundle/cache
+# keyed by source URL, and a re-run skips the /v2 probe -> the negotiation
+# assertions below would be non-deterministic.
+export BUNDLE_USER_HOME="$WORK/bundle-user"
 RUBY="$RUBY_PREFIX/bin/ruby"
 BUNDLE="$RUBY -I$RG/bundler/lib $RG/bundler/exe/bundle"
 

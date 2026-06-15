@@ -18,6 +18,7 @@ version+platform can coexist and the right one is fetched at resolve time.
 | `test_local.sh` | Builds + installs the gem and exercises `bundle install --local`. |
 | `test_remote.sh` | Renders compact-index files, starts the fake server, and exercises a real remote `bundle install`. |
 | `test_remote_mixed.sh` | One Gemfile spanning a v2 source (content-addressable gem) and a scoped v1-only source (traditional gem), proving per-source API negotiation in a single `bundle install`. |
+| `test_remote_reprobe.sh` | A source upgrades v1 -> v2; proves the client re-probes each resolve and switches to v2 (instead of being pinned to v1 forever). |
 
 ## Requirements
 
@@ -36,6 +37,7 @@ cd dev/content-addressable-test
 ./test_local.sh              # bundle install --local path
 ./test_remote.sh             # remote path via the fake compact-index server
 ./test_remote_mixed.sh       # v2 source + scoped v1 source in one Gemfile
+./test_remote_reprobe.sh     # source upgrades v1 -> v2; client re-probes
 ```
 
 > **Note:** these scripts honor a `PORT` env var. If you have `PORT` exported
@@ -94,6 +96,21 @@ end
    own remote, and there is no cross-source leakage. This exercises the
    **per-source** API negotiation: the cache + version marker are keyed by
    `remote.cache_slug`, so v2 and v1 sources coexist in a single resolve.
+
+### `test_remote_reprobe.sh`
+Guards against the negotiated API version being pinned forever. The client
+re-probes on every resolve (the probe's `versions` fetch is an ETag-conditional
+request, so it's a cheap `304` on a warm cache -- the same revalidation pattern
+as `versions`/`info`). The persisted `api_version` marker is kept only as an
+offline fallback:
+1. Serves a v1-only index and installs -> the client probes `/v2/versions`
+   (404), downgrades, and caches `api_version = 1`.
+2. **Upgrades the same source to v2** (adds `/v2/*`).
+3. Re-resolves and asserts the client **re-probes** `/v2/versions` (now 200),
+   rewrites the marker to `2`, and starts fetching the content-addressed
+   `/v2/info/hola` -- no cache-clearing required. If a re-probe can't reach the
+   network, the client falls back to the last persisted version so offline
+   installs against a warm cache still work.
 
 ## Gotchas (learned the hard way; encoded in the scripts)
 

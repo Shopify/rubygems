@@ -63,38 +63,24 @@ module Bundler
 
     attr_reader :api_version
 
-    # Determine, once per source, the newest compact index API version this
-    # source actually serves. Newer clients prefer v2 (`/v2/versions`,
-    # `/v2/info`); sources that only speak v1 answer the probe with a 404, so
-    # we transparently downgrade. The result is cached on disk so subsequent
-    # runs skip the probe (and so a v1-only source isn't re-probed every time).
+    # Determine the newest compact index API version this source actually
+    # serves. Newer clients prefer v2 (`/v2/versions`, `/v2/info`); sources that
+    # only speak v1 answer the probe with a 404, so we transparently downgrade.
+    #
+    # We re-probe on every resolve rather than trusting a cached decision
+    # forever, so a source that later adds v2 support is picked up. This is
+    # consistent with how `versions`/`info` are revalidated every run: the
+    # probe's `versions` fetch is an ETag-conditional request, so for the
+    # version a source actually serves it costs a cheap 304 when nothing
+    # changed. The persisted marker is kept only as an offline fallback (see
+    # #probe_api_version!).
     #
     # Only meaningful with a fetcher; read-only clients stay on the version
     # they were constructed with.
     def negotiate_api_version!
       return @api_version unless @fetcher
 
-      cached = persisted_api_version
-      if cached
-        use_api_version(cached) unless cached == @api_version
-        return @api_version
-      end
-
-      SUPPORTED_API_VERSIONS.each do |version|
-        use_api_version(version)
-        begin
-          versions # probe: fetches /vN/versions (or /versions for v1)
-          persist_api_version(version)
-          break
-        rescue Bundler::Fetcher::FallbackError
-          # This source doesn't serve this API version (404). Try the next
-          # lower one; v1 is unprefixed and always exists for a compact index.
-          next unless version == SUPPORTED_API_VERSIONS.last
-          raise
-        end
-      end
-
-      @api_version
+      probe_api_version!(fallback: persisted_api_version)
     end
 
     def names
@@ -133,6 +119,36 @@ module Bundler
     end
 
     private
+
+    # Probe the source over the wire, newest version first, and persist the
+    # result. The `versions` call uses ETag-conditional requests, so probing the
+    # version a source serves is cheap on a warm cache (304 Not Modified).
+    #
+    # If a usable `fallback` version is supplied and the probe fails for any
+    # reason other than a clean downgrade (e.g. the network is unreachable),
+    # keep using the fallback rather than failing the whole resolve -- this is
+    # what lets `bundle install` work offline against a warm cache.
+    def probe_api_version!(fallback: nil)
+      SUPPORTED_API_VERSIONS.each do |version|
+        use_api_version(version)
+        begin
+          versions # probe: fetches /vN/versions (or /versions for v1)
+          persist_api_version(version)
+          return @api_version
+        rescue Bundler::Fetcher::FallbackError
+          # This source doesn't serve this API version (404). Try the next
+          # lower one; v1 is unprefixed and always exists for a compact index.
+          next unless version == SUPPORTED_API_VERSIONS.last
+          raise
+        end
+      end
+
+      @api_version
+    rescue StandardError
+      raise unless fallback
+      use_api_version(fallback)
+      @api_version
+    end
 
     def use_api_version(version)
       version = 1 unless SUPPORTED_API_VERSIONS.include?(version)
