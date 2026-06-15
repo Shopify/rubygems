@@ -17,6 +17,7 @@ version+platform can coexist and the right one is fetched at resolve time.
 | `fake_compact_index.rb` | ~40-line, dependency-free threaded HTTP server that serves a directory as a compact index (`/v2/versions`, `/v2/info/<gem>`, `/gems/*.gem`). |
 | `test_local.sh` | Builds + installs the gem and exercises `bundle install --local`. |
 | `test_remote.sh` | Renders compact-index files, starts the fake server, and exercises a real remote `bundle install`. |
+| `test_remote_mixed.sh` | One Gemfile spanning a v2 source (content-addressable gem) and a scoped v1-only source (traditional gem), proving per-source API negotiation in a single `bundle install`. |
 
 ## Requirements
 
@@ -32,9 +33,14 @@ The scripts auto-locate this rubygems checkout (two levels up) and load the
 
 ```bash
 cd dev/content-addressable-test
-./test_local.sh     # bundle install --local path
-./test_remote.sh    # remote path via the fake compact-index server
+./test_local.sh              # bundle install --local path
+./test_remote.sh             # remote path via the fake compact-index server
+./test_remote_mixed.sh       # v2 source + scoped v1 source in one Gemfile
 ```
+
+> **Note:** these scripts honor a `PORT` env var. If you have `PORT` exported
+> in your shell (e.g. pointing at a dev-services proxy on `8080`), pass an
+> explicit one: `PORT=8898 ./test_remote_v1.sh`.
 
 Each prints every step and ends with `ALL GOOD`.
 
@@ -65,6 +71,29 @@ Each prints every step and ends with `ALL GOOD`.
 2. Bundler probes `/v2/versions`, fetches `/v2/info/hola`, resolves
    `hola 1.0.0 (<sha>)`, downloads `/gems/hola-1.0.0-<sha>.gem`, installs it, and
    `require` works.
+
+### `test_remote_mixed.sh`
+Runs **two** fake servers behind one Gemfile -- a v2 source and a scoped
+v1-only source:
+```ruby
+source "http://127.0.0.1:<v2>"        # content-addressable (skinny) hola
+gem "hola"
+
+source "http://127.0.0.1:<v1>" do     # legacy v1-only source (saludo)
+  gem "saludo"
+end
+```
+1. For the v2 source the client fetches `/v2/info/hola`, resolves
+   `hola 1.0.0 (<sha>)`, and downloads `/gems/hola-1.0.0-<sha>.gem`.
+2. For the v1 source the client probes `GET /v2/versions`, gets a **404**, and
+   transparently downgrades to v1 (see
+   `CompactIndexClient#negotiate_api_version!`) -- fetching the unprefixed
+   `/versions` + `/info/saludo` and downloading `/gems/saludo-1.0.0.gem`. No
+   `<sha>` token, no `/v2/info` request.
+3. Asserts both gems install and `require`, the lockfile records each under its
+   own remote, and there is no cross-source leakage. This exercises the
+   **per-source** API negotiation: the cache + version marker are keyed by
+   `remote.cache_slug`, so v2 and v1 sources coexist in a single resolve.
 
 ## Gotchas (learned the hard way; encoded in the scripts)
 
