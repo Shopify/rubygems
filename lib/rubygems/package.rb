@@ -136,6 +136,19 @@ class Gem::Package
     package.spec = spec
     package.build skip_validation, strict_validation
 
+    # Content-address skinny binaries (platformed + single Ruby ABI): rename
+    # name-version-platform.gem to name-version-<sha10>.gem so multiple per-Ruby
+    # builds of the same version+platform can coexist. Skipped when an explicit
+    # output file name was requested.
+    if file_name.nil? && spec.content_addressable?
+      require "digest"
+      sha = Digest::SHA256.file(gem_file).hexdigest[0, 10]
+      content_addressed = "#{spec.name}-#{spec.version}-#{sha}.gem"
+      File.rename(gem_file, content_addressed)
+      package.say "  Content-addressed: #{content_addressed}"
+      gem_file = content_addressed
+    end
+
     gem_file
   end
 

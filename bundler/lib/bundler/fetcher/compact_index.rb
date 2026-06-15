@@ -68,7 +68,11 @@ module Bundler
       def compact_index_client
         @compact_index_client ||=
           SharedHelpers.filesystem_access(cache_path) do
-            CompactIndexClient.new(cache_path, client_fetcher)
+            client = CompactIndexClient.new(cache_path, client_fetcher)
+            # Negotiate v1/v2 once per source: prefer the content-addressable v2
+            # index, transparently downgrading to v1 for sources that 404 it.
+            client.negotiate_api_version!
+            client
           end
       end
 

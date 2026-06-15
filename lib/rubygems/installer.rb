@@ -247,6 +247,16 @@ class Gem::Installer
     @gem_dir ||= File.join(gem_home, "gems", spec.full_name)
   end
 
+  def assign_content_address
+    return unless spec.content_addressable?
+    return unless @package.gem.respond_to?(:path)
+
+    require "digest"
+    spec.content_address = Digest::SHA256.file(@package.gem.path).hexdigest[0, 10]
+  rescue StandardError
+    nil
+  end
+
   ##
   # Lazy accessor for the installer's spec.
 
@@ -266,6 +276,11 @@ class Gem::Installer
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
 
   def install
+    # For a content-addressable ("skinny") binary, derive the content address
+    # from the gem's bytes so full_name -> gems/name-version-<sha>/ and the stub
+    # records the sha. Must run before any path (gem_dir/spec_file) is computed.
+    assign_content_address
+
     pre_install_checks
 
     run_pre_install_hooks
