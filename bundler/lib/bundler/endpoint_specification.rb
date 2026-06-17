@@ -5,7 +5,7 @@ module Bundler
   class EndpointSpecification < Gem::Specification
     include MatchRemoteMetadata
 
-    attr_reader :name, :version, :platform, :checksum, :created_at
+    attr_reader :name, :version, :platform, :checksum, :created_at, :platform_requirement
     attr_writer :dependencies
     attr_accessor :remote, :locked_platform
 
@@ -21,11 +21,37 @@ module Bundler
       @loaded_from          = nil
       @remote_specification = nil
       @locked_platform = nil
+      @platform_requirement = nil
 
       parse_metadata(metadata)
     end
 
+    # A content-addressable ("skinny") binary: the version token carries a SHA
+    # prefix instead of a platform, and the real platform is supplied via the
+    # compact index `platform:` requirement.
+    def content_addressable?
+      !@platform_requirement.nil?
+    end
+
+    # The version suffix (SHA prefix) carried in the version token's platform
+    # slot, e.g. "9f3c1a2b". Used to reconstruct the download/full name. nil for
+    # ordinary gems, whose @platform is a real Gem::Platform or the "ruby" string.
+    def version_suffix
+      @platform.version_suffix if @platform.is_a?(Gem::Platform)
+    end
+
+    # For content-addressable specs, platform matching must use the platform
+    # requirement from metadata, not the SHA prefix stored in @platform.
+    def installable_on_platform?(target_platform)
+      return super unless content_addressable?
+
+      target_platform.nil? ||
+        target_platform == Gem::Platform::RUBY ||
+        @platform_requirement === Gem::Platform.new(target_platform)
+    end
+
     def insecurely_materialized?
+      return false if content_addressable?
       @locked_platform.to_s != @platform.to_s
     end
 
@@ -162,6 +188,10 @@ module Bundler
           @required_rubygems_version = Gem::Requirement.new(v)
         when "ruby"
           @required_ruby_version = Gem::Requirement.new(v)
+        when "platform"
+          # e.g. v == ["= x86_64-linux-musl"]; strip the requirement operator.
+          platform_string = Array(v).last.to_s.sub(/\A\s*=?\s*/, "")
+          @platform_requirement = Gem::Platform.new(platform_string) unless platform_string.empty?
         when "created_at"
           value = v.is_a?(Array) ? v.last : v
           if value.is_a?(String)

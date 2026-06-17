@@ -13,6 +13,19 @@ module Bundler
       false
     end
 
+    # Delegate to the underlying RubyGems stub so content-addressable binaries
+    # use their content-addressed name (name-version-<sha>), matching the install
+    # directory, rather than recomputing name-version-platform.
+    def full_name
+      stub.full_name
+    end
+
+    # The version suffix lives on the stub line, not in the gemspec body, so read
+    # it from the RubyGems stub rather than method_missing'ing to the full spec.
+    def version_suffix
+      stub.version_suffix
+    end
+
     attr_reader :checksum
     attr_accessor :stub, :ignored
 
