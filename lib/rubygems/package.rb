@@ -130,6 +130,30 @@ class Gem::Package
   attr_accessor :data_mode
 
   def self.build(spec, skip_validation = false, strict_validation = false, file_name = nil)
+    # Content-address skinny binaries (platformed + single Ruby ABI) so multiple
+    # per-Ruby builds of the same version+platform can coexist. The file name
+    # embeds sha256(.gem)[0, 10], which isn't known until the gem is built, so
+    # build it in memory: this lets us compute the checksum from the bytes and
+    # write the content-addressed file in a single pass, instead of writing the
+    # gem to disk, reading it back to hash it, and renaming. Skipped when an
+    # explicit output file name was requested.
+    if file_name.nil? && spec.content_addressable?
+      require "digest"
+      require "stringio"
+
+      buffer = StringIO.new(+"".b)
+      package = new buffer
+      package.spec = spec
+      package.build skip_validation, strict_validation
+
+      data = buffer.string
+      sha = Digest::SHA256.hexdigest(data)[0, 10]
+      gem_file = "#{spec.name}-#{spec.version}-#{sha}.gem"
+      File.binwrite(gem_file, data)
+      package.say "  Content-addressed: #{gem_file}"
+      return gem_file
+    end
+
     gem_file = file_name || spec.file_name
 
     package = new gem_file
@@ -319,7 +343,7 @@ class Gem::Package
   Successfully built RubyGem
   Name: #{@spec.name}
   Version: #{@spec.version}
-  File: #{File.basename @gem.path}
+  File: #{@gem.path ? File.basename(@gem.path) : @spec.file_name}
 EOM
   ensure
     @signer = nil

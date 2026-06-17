@@ -557,6 +557,52 @@ class Gem::Specification < Gem::BasicSpecification
   end
 
   ##
+  # True for a "skinny" precompiled binary: a platformed gem pinned to a single
+  # Ruby ABI. These are content-addressed (name-version-<sha>) at build time so
+  # multiple per-Ruby builds of the same version+platform can coexist. Fat
+  # binaries (spanning many Ruby ABIs) and source gems are not.
+
+  def content_addressable?
+    return false if platform.nil? || platform == Gem::Platform::RUBY
+
+    !content_addressable_ruby_abi.nil?
+  end
+
+  ##
+  # The single "MAJOR.MINOR" Ruby series this gem targets, or nil if it spans
+  # more than one. Recognizes both `~> X.Y.Z` and the `>= X.Y, < X.(Y+1).dev`
+  # range rake-compiler emits for single-ABI native gems.
+
+  def content_addressable_ruby_abi
+    reqs = required_ruby_version.requirements
+    return nil if reqs.empty?
+
+    if reqs.size == 1
+      operator, version = reqs.first
+      return nil unless operator == "~>"
+      segments = version.segments
+      return nil unless segments.size >= 3
+
+      return segments.first(2).join(".")
+    end
+
+    if reqs.size == 2
+      lower = reqs.find {|op, _| [">=", ">"].include?(op) }
+      upper = reqs.find {|op, _| ["<", "<="].include?(op) }
+      return nil unless lower && upper
+
+      lo = lower.last.segments
+      hi = upper.last.segments
+      return nil unless lo.size >= 2 && hi.size >= 2
+      return nil unless hi[0] == lo[0] && hi[1] == lo[1] + 1
+
+      return lo.first(2).join(".")
+    end
+
+    nil
+  end
+
+  ##
   # Executables included in the gem.
   #
   # For example, the rake gem has rake as an executable. You don't specify the
@@ -2370,7 +2416,10 @@ class Gem::Specification < Gem::BasicSpecification
   def to_ruby
     result = []
     result << "# -*- encoding: utf-8 -*-"
-    result << "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{platform} #{raw_require_paths.join("\0")}"
+    stub = "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{platform} #{raw_require_paths.join("\0")}"
+    # content-addressable binaries carry the sha so the stub can rebuild full_name
+    stub += " #{version_suffix}" if version_suffix
+    result << stub
     result << "#{Gem::StubSpecification::PREFIX}#{extensions.join "\0"}" unless
       extensions.empty?
     result << nil

@@ -14,7 +14,7 @@ class Gem::StubSpecification < Gem::BasicSpecification
 
   class StubLine # :nodoc: all
     attr_reader :name, :version, :platform, :require_paths, :extensions,
-                :full_name
+                :full_name, :version_suffix
 
     NO_EXTENSIONS = [].freeze
 
@@ -34,7 +34,10 @@ class Gem::StubSpecification < Gem::BasicSpecification
     }.freeze
 
     def initialize(data, extensions)
-      parts          = data[PREFIX.length..-1].split(" ", 4)
+      # Fields: name version platform require_paths [version_suffix]
+      # The trailing version_suffix is present only for content-addressable
+      # ("skinny") binaries; old stubs have 4 fields and parse it as nil.
+      parts          = data[PREFIX.length..-1].split(" ", 5)
       @name          = -parts[0]
       @version       = if Gem::Version.correct?(parts[1])
         Gem::Version.new(parts[1])
@@ -42,15 +45,18 @@ class Gem::StubSpecification < Gem::BasicSpecification
         Gem::Version.new(0)
       end
 
-      @platform      = Gem::Platform.new parts[2]
-      @extensions    = extensions
-      @full_name     = if platform == Gem::Platform::RUBY
+      @platform        = Gem::Platform.new parts[2]
+      @extensions      = extensions
+      @version_suffix  = parts[4]
+      @full_name       = if @version_suffix
+        "#{name}-#{version}-#{@version_suffix}"
+      elsif platform == Gem::Platform::RUBY
         "#{name}-#{version}"
       else
         "#{name}-#{version}-#{platform}"
       end
 
-      path_list = parts.last
+      path_list = parts[3]
       @require_paths = REQUIRE_PATH_LIST[path_list] || path_list.split("\0").map! do |x|
         REQUIRE_PATHS[x] || x
       end
@@ -180,12 +186,24 @@ class Gem::StubSpecification < Gem::BasicSpecification
     data.full_name
   end
 
+  def version_suffix
+    data.version_suffix
+  end
+
   ##
   # The full Gem::Specification for this gem, loaded from evalling its gemspec
 
   def spec
     @spec ||= loaded_spec if @data
     @spec ||= Gem::Specification.load(loaded_from)
+    # The version suffix lives on the stub line, not in the gemspec body, so the
+    # freshly-evalled full spec wouldn't know its content-addressed full_name
+    # (and would compute name-version-platform paths that don't exist on disk).
+    # Carry it over from the stub.
+    if @spec && !@spec.version_suffix && (vs = version_suffix) && !vs.empty?
+      @spec.version_suffix = vs
+    end
+    @spec
   end
   alias_method :to_spec, :spec
 

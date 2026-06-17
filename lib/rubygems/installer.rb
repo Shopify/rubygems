@@ -255,6 +255,22 @@ class Gem::Installer
   end
 
   ##
+  # Derive the version suffix (sha256[0,10]) from the gem's bytes for a
+  # content-addressable ("skinny") binary, so full_name -> name-version-<sha>
+  # and the stub records the sha. Computed from content, so the builder, the
+  # installer, and a registry all derive the same value without coordination.
+
+  def assign_version_suffix
+    return unless spec.content_addressable?
+    return unless @package.gem.respond_to?(:path)
+
+    require "digest"
+    spec.version_suffix = Digest::SHA256.file(@package.gem.path).hexdigest[0, 10]
+  rescue StandardError
+    nil
+  end
+
+  ##
   # Installs the gem and returns a loaded Gem::Specification for the installed
   # gem.
   #
@@ -266,6 +282,11 @@ class Gem::Installer
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
 
   def install
+    # For a content-addressable ("skinny") binary, derive the version suffix
+    # from the gem's bytes so full_name -> gems/name-version-<sha>/ and the stub
+    # records the sha. Must run before any path (gem_dir/spec_file) is computed.
+    assign_version_suffix
+
     pre_install_checks
 
     run_pre_install_hooks
