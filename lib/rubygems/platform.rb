@@ -10,6 +10,27 @@ class Gem::Platform
 
   attr_accessor :cpu, :os, :version
 
+  # For content-addressable ("skinny") binaries, the "platform" token is a
+  # 10-char hex prefix of the gem's SHA256 rather than a real cpu/os/version.
+  # It is kept in its own field so it never masquerades as an operating system.
+  attr_reader :version_suffix
+
+  ##
+  # A version suffix is a 10-char hex prefix of a gem's SHA256 checksum, used
+  # by content-addressable ("skinny") binaries in the version token's platform
+  # slot. The real platform lives in the compact index `platform:` requirement
+  # instead of in the version token.
+
+  VERSION_SUFFIX = /\A[0-9a-f]{10}\z/
+
+  def self.version_suffix?(string)
+    string.is_a?(String) && VERSION_SUFFIX.match?(string)
+  end
+
+  def version_suffix?
+    !@version_suffix.nil?
+  end
+
   def self.local(refresh: false)
     return @local if @local && !refresh
     @local = begin
@@ -73,10 +94,27 @@ class Gem::Platform
   end
 
   def initialize(arch)
+    @version_suffix = nil
+
     case arch
     when Array then
-      @cpu, @os, @version = arch
+      cpu, os, version = arch
+      # Round-trip a version suffix that was serialized via #to_a.
+      if cpu.nil? && version.nil? && Gem::Platform.version_suffix?(os)
+        @version_suffix = os
+      else
+        @cpu, @os, @version = cpu, os, version
+      end
     when String then
+      # Preserve version-suffix SHA prefixes verbatim (e.g. "ef716ba7a6").
+      # They have no cpu/os/version; otherwise they would normalize to
+      # os="unknown", destroying the hash used in filenames, lockfile
+      # entries, and download URLs.
+      if Gem::Platform.version_suffix?(arch)
+        @version_suffix = arch
+        return
+      end
+
       cpu, os = arch.sub(/-+$/, "").split("-", 2)
 
       @cpu = if cpu&.match?(/i\d86/)
@@ -122,17 +160,20 @@ class Gem::Platform
       @cpu = arch.cpu
       @os = arch.os
       @version = arch.version
+      @version_suffix = arch.version_suffix
     else
       raise ArgumentError, "invalid argument #{arch.inspect}"
     end
   end
 
   def to_a
+    return [nil, @version_suffix, nil] if version_suffix?
     [@cpu, @os, @version]
   end
 
   def to_s
-    to_a.compact.join(@cpu.nil? ? "" : "-")
+    return @version_suffix if version_suffix?
+    [@cpu, @os, @version].compact.join(@cpu.nil? ? "" : "-")
   end
 
   ##
@@ -171,13 +212,13 @@ class Gem::Platform
   # the same CPU, OS and version.
 
   def ==(other)
-    self.class === other && to_a == other.to_a
+    self.class === other && version_suffix == other.version_suffix && to_a == other.to_a
   end
 
   alias_method :eql?, :==
 
   def hash # :nodoc:
-    to_a.hash
+    [@version_suffix, @cpu, @os, @version].hash
   end
 
   ##
@@ -200,6 +241,12 @@ class Gem::Platform
 
   def ===(other)
     return nil unless Gem::Platform === other
+
+    # A version suffix only matches the identical version suffix; it never
+    # fuzzy-matches a real platform (and vice versa).
+    if version_suffix? || other.version_suffix?
+      return version_suffix == other.version_suffix
+    end
 
     # universal-mingw32 matches x64-mingw-ucrt
     return true if (@cpu == "universal" || other.cpu == "universal") &&
