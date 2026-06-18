@@ -132,7 +132,8 @@ class Gem::Package
   def self.build(spec, skip_validation = false, strict_validation = false, file_name = nil)
     # Content-address skinny binaries (platformed + single Ruby ABI) so multiple
     # per-Ruby builds of the same version+platform can coexist. The file name
-    # embeds sha256(.gem)[0, 10], which isn't known until the gem is built, so
+    # embeds sha256(.gem)[0, DEFAULT_VERSION_SUFFIX_LENGTH], which isn't known
+    # until the gem is built, so
     # build it in memory: this lets us compute the checksum from the bytes and
     # write the content-addressed file in a single pass, instead of writing the
     # gem to disk, reading it back to hash it, and renaming. Skipped when an
@@ -147,7 +148,7 @@ class Gem::Package
       package.build skip_validation, strict_validation
 
       data = buffer.string
-      sha = Digest::SHA256.hexdigest(data)[0, 10]
+      sha = Digest::SHA256.hexdigest(data)[0, Gem::Platform::DEFAULT_VERSION_SUFFIX_LENGTH]
       gem_file = "#{spec.name}-#{spec.version}-#{sha}.gem"
       File.binwrite(gem_file, data)
       package.say "  Content-addressed: #{gem_file}"

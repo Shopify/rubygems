@@ -11,17 +11,25 @@ class Gem::Platform
   attr_accessor :cpu, :os, :version
 
   # For content-addressable ("skinny") binaries, the "platform" token is a
-  # 10-char hex prefix of the gem's SHA256 rather than a real cpu/os/version.
-  # It is kept in its own field so it never masquerades as an operating system.
+  # hex prefix of the gem's SHA256 rather than a real cpu/os/version. It is
+  # kept in its own field so it never masquerades as an operating system.
   attr_reader :version_suffix
 
   ##
-  # A version suffix is a 10-char hex prefix of a gem's SHA256 checksum, used
-  # by content-addressable ("skinny") binaries in the version token's platform
+  # A version suffix is a hex prefix of a gem's SHA256 checksum, used by
+  # content-addressable ("skinny") binaries in the version token's platform
   # slot. The real platform lives in the compact index `platform:` requirement
   # instead of in the version token.
+  #
+  # The default width is DEFAULT_VERSION_SUFFIX_LENGTH; it may be widened (up
+  # to the full 64-char digest) to disambiguate two distinct gems that share
+  # the same name, version, and default-width prefix. The width is carried by
+  # the authoritative token (the registry/build file name), never recomputed,
+  # so a wider token flows through full_name, paths, and download URLs as-is.
 
-  VERSION_SUFFIX = /\A[0-9a-f]{10}\z/
+  DEFAULT_VERSION_SUFFIX_LENGTH = 8
+
+  VERSION_SUFFIX = /\A[0-9a-f]{#{DEFAULT_VERSION_SUFFIX_LENGTH},64}\z/
 
   def self.version_suffix?(string)
     string.is_a?(String) && VERSION_SUFFIX.match?(string)
