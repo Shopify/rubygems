@@ -255,6 +255,147 @@ class Gem::Installer
   end
 
   ##
+  # Derive the version suffix (a hex prefix of sha256(.gem)) for a
+  # content-addressable ("skinny") binary, so full_name -> name-version-<sha>
+  # and the stub records the sha.
+  #
+  # The width is *authoritative when it comes from the file name* (e.g.
+  # name-version-<sha>.gem as published by the registry / `gem build`). We use
+  # that width verbatim and only sanity-check that it is a prefix of the real
+  # digest. Recomputing the width locally would diverge from the index token,
+  # the download URL, and the lockfile, so the registry owns collision
+  # resolution and the client just trusts the token it was given.
+  #
+  # Only a bare local install whose file name carries no token falls back to
+  # the default width, growing it just enough to avoid clobbering a *different*
+  # gem already installed under the same name, version, and prefix.
+
+  def assign_version_suffix
+    return unless spec.content_addressable?
+    return unless @package.gem.respond_to?(:path)
+
+    require "digest"
+    full_digest = Digest::SHA256.file(@package.gem.path).hexdigest
+
+    spec.version_suffix =
+      version_suffix_from_filename(full_digest) ||
+      unique_local_version_suffix(full_digest)
+
+    # Converge byte-identical installs onto a single canonical directory and
+    # remove any other-width duplicates. Best-effort: never let this unset the
+    # suffix already assigned above.
+    converge_content_address(full_digest)
+  rescue StandardError
+    nil
+  end
+
+  ##
+  # Ensure exactly one directory holds this content. The registry only widens a
+  # content address past the default on collision, so a *wider* suffix is the
+  # authoritative remote address: we prefer it over a narrower local build, and
+  # prune any byte-identical install at a different width (leaving two would
+  # make activation order nondeterministic, since they share name+version+
+  # platform and differ only in the suffix).
+
+  def converge_content_address(full_digest)
+    canonical = ([spec.version_suffix] + same_content_version_suffixes(full_digest)).compact.max_by(&:length)
+    return unless canonical
+
+    spec.version_suffix = canonical
+
+    same_content_version_suffixes(full_digest).each do |token|
+      next if token == canonical
+      remove_content_address_install("#{spec.name}-#{spec.version}-#{token}")
+    end
+  rescue StandardError
+    nil
+  end
+  private :converge_content_address
+
+  ##
+  # Trust a version suffix carried by the gem's file name (the registry/build
+  # token). Returns it only when it is well-formed and an actual prefix of the
+  # gem's real digest; otherwise nil so the caller derives one locally.
+
+  def version_suffix_from_filename(full_digest)
+    base = File.basename(@package.gem.path.to_s, ".gem")
+    token = base.split("-").last
+    return unless Gem::Platform.version_suffix?(token)
+    return unless full_digest.start_with?(token)
+
+    token
+  end
+  private :version_suffix_from_filename
+
+  ##
+  # Choose the version suffix for a bare local install (no token in the file
+  # name). The width is content-canonical:
+  #
+  # * If the *same content* is already installed under some width (matched by
+  #   full digest, never by truncated prefix — a prefix is ambiguous when two
+  #   distinct gems collided), reuse the widest such width so identical bytes
+  #   never materialize twice under different names.
+  # * Otherwise use the default width, growing it only to avoid clobbering a
+  #   *different* gem that already occupies the same prefix.
+
+  def unique_local_version_suffix(full_digest)
+    reuse = same_content_version_suffixes(full_digest).max_by(&:length)
+    return reuse if reuse
+
+    length = Gem::Platform::DEFAULT_VERSION_SUFFIX_LENGTH
+
+    while length < full_digest.length
+      candidate = full_digest[0, length]
+      dir = File.join(gem_home, "gems", "#{spec.name}-#{spec.version}-#{candidate}")
+      break unless File.directory?(dir)
+
+      # A different gem occupies this prefix (same content was handled above):
+      # widen to avoid clobbering it.
+      length += 2
+    end
+
+    full_digest[0, length]
+  end
+  private :unique_local_version_suffix
+
+  ##
+  # Version suffixes of already-installed directories whose gem has identical
+  # content (full sha256 == +full_digest+) under this name and version.
+  # Matching is by full digest, which is unambiguous; a shared prefix is not,
+  # since two colliding gems share the default-width prefix by definition.
+
+  def same_content_version_suffixes(full_digest)
+    gems = File.join(gem_home, "gems")
+    return [] unless File.directory?(gems)
+
+    prefix = "#{spec.name}-#{spec.version}-"
+    Dir.children(gems).filter_map do |entry|
+      next unless entry.start_with?(prefix)
+
+      token = entry[prefix.length..]
+      next unless Gem::Platform.version_suffix?(token)
+      next unless full_digest.start_with?(token)
+
+      cached = File.join(gem_home, "cache", "#{entry}.gem")
+      token if File.file?(cached) && Digest::SHA256.file(cached).hexdigest == full_digest
+    end
+  end
+  private :same_content_version_suffixes
+
+  ##
+  # Remove a content-addressed install (gem dir, cached gem, gemspec stub, and
+  # built extensions) by its full_name. Used to prune a byte-identical
+  # duplicate that lives at a different content-address width.
+
+  def remove_content_address_install(full_name)
+    FileUtils.rm_rf File.join(gem_home, "gems", full_name)
+    FileUtils.rm_f  File.join(gem_home, "cache", "#{full_name}.gem")
+    FileUtils.rm_f  File.join(gem_home, "specifications", "#{full_name}.gemspec")
+    Dir.glob(File.join(gem_home, "extensions", "*", "*", full_name)).each {|d| FileUtils.rm_rf d }
+  end
+  private :remove_content_address_install
+
+  ##
   # Installs the gem and returns a loaded Gem::Specification for the installed
   # gem.
   #
@@ -266,6 +407,11 @@ class Gem::Installer
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
 
   def install
+    # For a content-addressable ("skinny") binary, derive the version suffix
+    # from the gem's bytes so full_name -> gems/name-version-<sha>/ and the stub
+    # records the sha. Must run before any path (gem_dir/spec_file) is computed.
+    assign_version_suffix
+
     pre_install_checks
 
     run_pre_install_hooks

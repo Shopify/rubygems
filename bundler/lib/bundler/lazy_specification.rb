@@ -9,7 +9,7 @@ module Bundler
     include ForcePlatform
 
     attr_reader :name, :version, :platform, :materialization
-    attr_accessor :source, :remote, :force_ruby_platform, :dependencies, :required_ruby_version, :required_rubygems_version, :overrides
+    attr_accessor :source, :remote, :force_ruby_platform, :dependencies, :required_ruby_version, :required_rubygems_version, :overrides, :platform_requirement, :version_suffix
 
     #
     # For backwards compatibility with existing lockfiles, if the most specific
@@ -31,7 +31,23 @@ module Bundler
       lazy_spec.required_ruby_version = s.required_ruby_version
       lazy_spec.required_rubygems_version = s.required_rubygems_version
       lazy_spec.overrides = s.overrides if s.is_a?(LazySpecification)
+      lazy_spec.platform_requirement = s.platform_requirement if s.respond_to?(:platform_requirement)
+      lazy_spec.version_suffix = s.version_suffix if s.respond_to?(:version_suffix)
       lazy_spec
+    end
+
+    def content_addressable?
+      !@platform_requirement.nil?
+    end
+
+    # Match using the platform requirement from metadata when content-addressable,
+    # since @platform holds the SHA prefix rather than a real platform.
+    def installable_on_platform?(target_platform)
+      return super unless content_addressable?
+
+      target_platform.nil? ||
+        target_platform == Gem::Platform::RUBY ||
+        @platform_requirement === Gem::Platform.new(target_platform)
     end
 
     def initialize(name, version, platform, source = nil, **materialization_options)
@@ -64,7 +80,9 @@ module Bundler
     end
 
     def full_name
-      @full_name ||= if platform == Gem::Platform::RUBY
+      @full_name ||= if @version_suffix
+        "#{@name}-#{@version}-#{@version_suffix}"
+      elsif platform == Gem::Platform::RUBY
         "#{@name}-#{@version}"
       else
         "#{@name}-#{@version}-#{platform}"
@@ -140,6 +158,17 @@ module Bundler
 
       if use_exact_resolved_specifications?
         spec = materialize(self) {|specs| choose_compatible(specs, fallback_to_non_installable: false) }
+
+        # The exact locked full_name wasn't found in the index (materialize returns
+        # self). This happens for content-addressable gems: the installed full_name
+        # is name-version-<sha>, while the lockfile pins the portable
+        # name-version-platform. Retry by name+version and let platform/ruby
+        # selection pick the right binary.
+        if spec.equal?(self)
+          by_name = materialize([name, version]) {|specs| resolve_best_platform(specs) }
+          return by_name unless by_name.nil? || by_name.equal?(self)
+        end
+
         return spec if spec
 
         # Exact spec is incompatible; in frozen mode, try to find a compatible platform variant

@@ -22,8 +22,33 @@ module Bundler
       Gem::Platform.sort_best_platform_match(matching, local)
     end
 
+    def self.content_addressable?(spec)
+      spec.respond_to?(:content_addressable?) && spec.content_addressable?
+    end
+
+    # A skinny binary targets exactly one Ruby minor (e.g. `~> 3.2.0`). Those
+    # ranges are disjoint, so at most one skinny variant per (gem, version,
+    # platform) is compatible with the running Ruby. Only a Ruby-compatible
+    # skinny may displace the fat/ruby fallback.
+    def self.usable_skinny?(spec)
+      return false unless content_addressable?(spec)
+
+      req = spec.required_ruby_version
+      req.nil? || req.none? || req.satisfied_by?(Gem.ruby_version)
+    end
+
     def self.select_all_platform_match(specs, platform, force_ruby: false, prefer_locked: false)
       matching = specs.select {|spec| spec.installable_on_platform?(force_ruby ? Gem::Platform::RUBY : platform) }
+
+      # Prefer the skinny (content-addressable) binary: when a skinny variant
+      # compatible with the running Ruby exists, choose it exclusively. If no
+      # skinny matches this Ruby, keep the fat/ruby variants as a fallback so we
+      # never strand a usable binary. Because per-minor `~>` ranges are disjoint,
+      # at most one skinny qualifies -- no skinny-vs-skinny tie-break is needed.
+      unless force_ruby
+        skinny = matching.select {|spec| usable_skinny?(spec) }
+        matching = skinny if skinny.any?
+      end
 
       specs.each(&:force_ruby_platform!) if force_ruby
 
