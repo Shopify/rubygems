@@ -319,6 +319,13 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_equal "skinny-1.0.0-#{sha}", stub.full_name
     assert_equal Gem::Platform.new("x86_64-linux"), stub.platform
     assert_equal sha, stub.content_address
+
+    # the cached gem is content-addressed too
+    assert_path_exist File.join(@gemhome, "cache", "skinny-1.0.0-#{sha}.gem")
+
+    # re-installing the same content-addressed gem is idempotent (same dir)
+    reinstalled = use_ui(@ui) { Gem::Installer.at(ca_path, force: true).install }
+    assert_equal "skinny-1.0.0-#{sha}", reinstalled.full_name
   end
 
   def test_install_non_content_addressable_gem_unchanged

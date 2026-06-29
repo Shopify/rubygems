@@ -15,7 +15,6 @@ module Bundler
 
     def self.select_best_platform_match(specs, platform, force_ruby: false, prefer_locked: false)
       matching = select_all_platform_match(specs, platform, force_ruby: force_ruby, prefer_locked: prefer_locked)
-      matching = prefer_content_addressable(matching)
 
       Gem::Platform.sort_and_filter_best_platform_match(matching, platform)
     end
@@ -46,10 +45,14 @@ module Bundler
 
       if prefer_locked
         locked_originally = matching.select {|spec| spec.is_a?(::Bundler::LazySpecification) }
+        # An existing lock wins to avoid churn; the skinny preference below only
+        # applies when not pinned to the lockfile (fresh installs, updates, and
+        # the local-platform path, which passes no prefer_locked).
         return locked_originally if locked_originally.any?
       end
 
-      matching
+      # force_ruby installs the RUBY variant by design, so never prefer skinny then.
+      force_ruby ? matching : prefer_content_addressable(matching)
     end
 
     def self.generic_local_platform_is_ruby?

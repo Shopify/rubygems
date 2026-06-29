@@ -195,6 +195,7 @@ module Spec
         "spec/bundler/override_spec.rb",
         "spec/install/gemfile/override_spec.rb",
         "spec/bundler/match_platform_spec.rb",
+        "spec/bundler/content_addressable_spec.rb",
       ],
     }.freeze
   end
