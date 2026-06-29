@@ -5,24 +5,52 @@ module Bundler
   class EndpointSpecification < Gem::Specification
     include MatchRemoteMetadata
 
-    attr_reader :name, :version, :platform, :checksum, :created_at
+    attr_reader :name, :version, :platform, :checksum, :created_at, :content_address
     attr_writer :dependencies
     attr_accessor :remote, :locked_platform
 
-    def initialize(name, version, platform, spec_fetcher, dependencies, metadata = nil)
+    # `suffix` is the trailing `name-version-<suffix>` segment from the compact
+    # index. For fat/source gems it is the real platform; for content-addressable
+    # ("skinny") gems it is the content address (SHA), and the real platform
+    # arrives instead as a `platform:` requirement in `metadata` (see
+    # #parse_metadata).
+    def initialize(name, version, suffix, spec_fetcher, dependencies, metadata = nil)
       super()
-      @name         = name
-      @version      = Gem::Version.create version
-      @platform     = Gem::Platform.new(platform)
-      @spec_fetcher = spec_fetcher
-      @dependencies = nil
+      @name          = name
+      @version       = Gem::Version.create version
+      @spec_fetcher  = spec_fetcher
+      @dependencies  = nil
       @unbuilt_dependencies = dependencies
 
       @loaded_from          = nil
       @remote_specification = nil
-      @locked_platform = nil
+      @locked_platform      = nil
+      @content_address      = nil
+      @required_platform    = nil
 
       parse_metadata(metadata)
+
+      if @required_platform
+        @content_address = suffix # the suffix was a content address, not a platform
+        @platform        = @required_platform
+      else
+        @platform        = Gem::Platform.new(suffix)
+      end
+    end
+
+    def content_addressable?
+      !@content_address.nil?
+    end
+
+    # For content-addressable gems the on-disk / lockfile / quick-index identity
+    # is `name-version-<sha>`, even though #platform reports the real platform so
+    # that matching keeps working unchanged.
+    def full_name
+      if content_addressable?
+        "#{@name}-#{@version}-#{@content_address}"
+      else
+        super
+      end
     end
 
     def insecurely_materialized?
@@ -134,7 +162,8 @@ module Bundler
     private
 
     def _remote_specification
-      @_remote_specification ||= @spec_fetcher.fetch_spec([@name, @version, @platform])
+      token = content_addressable? ? @content_address : @platform
+      @_remote_specification ||= @spec_fetcher.fetch_spec([@name, @version, token])
     end
 
     def local_specification_path
@@ -162,6 +191,8 @@ module Bundler
           @required_rubygems_version = Gem::Requirement.new(v)
         when "ruby"
           @required_ruby_version = Gem::Requirement.new(v)
+        when "platform"
+          @required_platform = required_platform_from(v.last)
         when "created_at"
           value = v.is_a?(Array) ? v.last : v
           if value.is_a?(String)
@@ -179,6 +210,13 @@ module Bundler
 
     def build_dependency(name, requirements)
       Dependency.new(name, requirements)
+    end
+
+    def required_platform_from(requirement)
+      operator, platform = requirement.to_s.strip.split(/\s+/, 2)
+      return unless operator == "=" && platform
+
+      Gem::Platform.new(platform)
     end
   end
 end

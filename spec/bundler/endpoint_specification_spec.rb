@@ -88,6 +88,85 @@ RSpec.describe Bundler::EndpointSpecification do
     end
   end
 
+  describe "content addressing" do
+    context "with a content-addressable (skinny) gem" do
+      let(:platform) { "9f3c1a2b" } # the version-PLATFORM suffix holds the content address
+      let(:metadata) do
+        [
+          ["ruby", ["~> 3.3.0"]],
+          ["rubygems", [">= 4.1.0.dev"]],
+          ["platform", ["= x86_64-linux"]],
+        ]
+      end
+
+      it { is_expected.to be_content_addressable }
+
+      it "exposes the content address taken from the suffix" do
+        expect(spec.content_address).to eq("9f3c1a2b")
+      end
+
+      it "decodes the real platform from the platform: requirement" do
+        expect(spec.platform).to eq(Gem::Platform.new("x86_64-linux"))
+      end
+
+      it "reconstructs the content-addressed full_name rather than the real platform" do
+        expect(spec.full_name).to eq("foo-1.0.0-9f3c1a2b")
+      end
+
+      it "matches against the real platform, not the content address" do
+        expect(spec.installable_on_platform?(Gem::Platform.new("x86_64-linux"))).to be true
+      end
+
+      it "still parses the ruby and rubygems requirements" do
+        expect(spec.required_ruby_version).to eq(Gem::Requirement.new("~> 3.3.0"))
+        expect(spec.required_rubygems_version).to eq(Gem::Requirement.new(">= 4.1.0.dev"))
+      end
+
+      it "fetches the full remote spec keyed by the content address, not the platform" do
+        # `_remote_specification` lazily loads the marshalled quick spec, which the
+        # server stores under `name-version-<sha>` for skinny gems.
+        remote_spec = double(:remote_spec)
+        expect(spec_fetcher).to receive(:fetch_spec).with(["foo", spec.version, "9f3c1a2b"]).and_return(remote_spec)
+        expect(spec.send(:_remote_specification)).to eq(remote_spec)
+      end
+
+      context "when the platform: requirement uses a non-equality operator" do
+        let(:metadata) { [["platform", [">= x86_64-linux"]]] }
+
+        it "ignores it and treats the row as a non-skinny gem" do
+          expect(spec).not_to be_content_addressable
+          expect(spec.content_address).to be_nil
+        end
+      end
+    end
+
+    context "with a fat (platform-specific) gem" do
+      let(:platform) { "x86_64-linux" }
+      let(:metadata) { [["ruby", [">= 3.1"]]] }
+
+      it { is_expected.not_to be_content_addressable }
+
+      it "has no content address" do
+        expect(spec.content_address).to be_nil
+      end
+
+      it "uses the real platform in full_name (delegates to super)" do
+        expect(spec.full_name).to eq("foo-1.0.0-x86_64-linux")
+      end
+    end
+
+    context "with a non-platformed (source) gem" do
+      # platform defaults to Gem::Platform::RUBY from the top-level let
+      let(:metadata) { [["ruby", [">= 3.1"]], ["rubygems", [">= 3.3.22"]]] }
+
+      it { is_expected.not_to be_content_addressable }
+
+      it "falls through to the bare name-version full_name (delegates to super)" do
+        expect(spec.full_name).to eq("foo-1.0.0")
+      end
+    end
+  end
+
   describe "#required_ruby_version" do
     context "required_ruby_version is already set on endpoint specification" do
       existing_value = "already set value"
