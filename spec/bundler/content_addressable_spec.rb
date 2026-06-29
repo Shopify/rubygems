@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "bundler/endpoint_specification"
+require "bundler/lazy_specification"
 require "bundler/match_platform"
 
 # Integration of the bundler-side content-addressable pieces with *real*
@@ -72,5 +73,20 @@ RSpec.describe "content-addressable gem selection" do
       [source, fat, incompatible_skinny, compatible_skinny], platform
     )
     expect(selected.map(&:full_name)).to eq(["foo-1.0.0-9f3c1a2b"])
+  end
+
+  # Lockfile round-trip: the lockfile records the real platform, so the parsed
+  # LazySpecification is not content-addressable and its lock_name matches the
+  # entry. It then materializes to the skinny variant via the selection above.
+  it "round-trips a skinny gem through the lockfile on the real platform" do
+    # the resolved skinny spec records the real platform in the lockfile...
+    expect(compatible_skinny.lock_name).to eq("foo (1.0.0-x86_64-linux)")
+
+    # ...and the lockfile-derived LazySpecification stays a plain real-platform
+    # entry (no content address), which re-resolves to skinny via selection.
+    locked = Bundler::LazySpecification.new("foo", Gem::Version.new("1.0.0"), platform)
+    expect(locked).not_to be_content_addressable
+    expect(locked.content_address).to be_nil
+    expect(locked.lock_name).to eq("foo (1.0.0-x86_64-linux)")
   end
 end

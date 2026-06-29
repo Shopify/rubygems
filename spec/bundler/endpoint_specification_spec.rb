@@ -130,6 +130,24 @@ RSpec.describe Bundler::EndpointSpecification do
         expect(spec.send(:_remote_specification)).to eq(remote_spec)
       end
 
+      it "records the real platform in the lockfile, not the content address" do
+        # full_name is content-addressed (download/install identity), but
+        # lock_name keeps the real platform so the lockfile is unchanged from
+        # today and round-trips without re-resolving to a different variant.
+        expect(spec.full_name).to eq("foo-1.0.0-9f3c1a2b")
+        expect(spec.lock_name).to eq("foo (1.0.0-x86_64-linux)")
+      end
+
+      it "is not insecurely materialized when locked to its real platform" do
+        spec.locked_platform = Gem::Platform.new("x86_64-linux")
+        expect(spec).not_to be_insecurely_materialized
+      end
+
+      it "is insecurely materialized when locked to a different platform" do
+        spec.locked_platform = Gem::Platform.new("arm64-darwin")
+        expect(spec).to be_insecurely_materialized
+      end
+
       context "when the platform: requirement uses a non-equality operator" do
         let(:metadata) { [["platform", [">= x86_64-linux"]]] }
 
