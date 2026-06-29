@@ -81,6 +81,16 @@ module Bundler
       stub.default_gem?
     end
 
+    # Content-addressed identity comes from the wrapped stub, so an installed
+    # skinny gem reports the same name-version-<sha> full_name as its remote spec.
+    def full_name
+      stub.full_name
+    end
+
+    def content_address
+      stub.content_address
+    end
+
     def full_gem_path
       stub.full_gem_path
     end

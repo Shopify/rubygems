@@ -56,6 +56,37 @@ class TestStubSpecification < Gem::TestCase
     assert !stub.stubbed?
   end
 
+  def test_initialize_content_addressable
+    stub = stub_with_content_address
+
+    assert stub.content_addressable?
+    assert_equal "9f3c1a2b", stub.content_address
+    # the real platform (from the # stub-target: line), used for matching
+    assert_equal Gem::Platform.new("x86_64-linux"), stub.platform
+    # identity is content-addressed
+    assert_equal "skinny-1.0.0-9f3c1a2b", stub.full_name
+    # the content address sits in the platform slot, not appended to the require
+    # paths, so they stay clean
+    assert_equal ["lib"], stub.require_paths
+  end
+
+  def test_to_spec_carries_content_address
+    stub = stub_with_content_address
+    stub.full_name # cheap read first, as in the normal load path
+
+    spec = stub.to_spec
+
+    # the address lives on the stub line, not in the gemspec body; carried over
+    # so the full spec keeps the content-addressed full_name
+    assert_equal "9f3c1a2b", spec.content_address
+    assert_equal "skinny-1.0.0-9f3c1a2b", spec.full_name
+  end
+
+  def test_non_content_addressable_stub
+    refute @foo.content_addressable?
+    assert_nil @foo.content_address
+  end
+
   def test_contains_requirable_file_eh
     stub = stub_without_extension
     code_rb = File.join stub.gem_dir, "lib", "code.rb"
@@ -264,6 +295,23 @@ class TestStubSpecification < Gem::TestCase
 
       return stub
     end
+  end
+
+  def stub_with_content_address
+    spec = Gem::Specification.new do |s|
+      s.name = "skinny"
+      s.version = "1.0.0"
+      s.platform = "x86_64-linux"
+      s.require_paths = ["lib"]
+    end
+    spec.content_address = "9f3c1a2b"
+
+    path = File.join @gemhome, "specifications", "#{spec.full_name}.gemspec"
+    File.write path, spec.to_ruby
+
+    stub = Gem::StubSpecification.gemspec_stub path, @gemhome, File.join(@gemhome, "gems")
+    yield stub if block_given?
+    stub
   end
 
   def stub_with_extension

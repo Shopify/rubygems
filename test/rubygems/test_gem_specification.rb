@@ -2513,6 +2513,40 @@ end
     assert_equal "old_platform", same_spec.original_platform
   end
 
+  def test_to_ruby_content_addressable
+    spec = Gem::Specification.new do |s|
+      s.name = "skinny"
+      s.version = "1.0.0"
+      s.platform = "x86_64-linux"
+      s.require_paths = ["lib"]
+    end
+    spec.content_address = "9f3c1a2b"
+
+    stub_lines = spec.to_ruby.lines.map(&:chomp)
+
+    # the content address occupies the platform slot, so even old RubyGems
+    # reconstruct a name-version-<sha> full_name distinct from the fat name
+    assert_includes stub_lines, "# stub: skinny 1.0.0 9f3c1a2b lib"
+    # the real platform is recorded on the extensible target line
+    assert_includes stub_lines, "# stub-target: platform=x86_64-linux"
+  end
+
+  def test_to_ruby_non_content_addressable_stub_line_unchanged
+    spec = Gem::Specification.new do |s|
+      s.name = "fat"
+      s.version = "2.0.0"
+      s.platform = "x86_64-linux"
+      s.require_paths = ["lib"]
+    end
+
+    stub_lines = spec.to_ruby.lines.map(&:chomp)
+
+    # non-skinny gems must produce a byte-identical stub line (no target line),
+    # so older RubyGems are completely unaffected for the gems they install
+    assert_includes stub_lines, "# stub: fat 2.0.0 x86_64-linux lib"
+    refute stub_lines.any? {|line| line.start_with?("# stub-target:") }
+  end
+
   def test_to_yaml
     yaml_str = @a1.to_yaml
 

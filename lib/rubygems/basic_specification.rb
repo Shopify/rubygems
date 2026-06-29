@@ -145,11 +145,26 @@ class Gem::BasicSpecification
   # default Ruby platform.
 
   def full_name
-    if platform == Gem::Platform::RUBY || platform.nil?
+    if content_addressable?
+      "#{name}-#{version}-#{content_address}"
+    elsif platform == Gem::Platform::RUBY || platform.nil?
       "#{name}-#{version}"
     else
       "#{name}-#{version}-#{platform}"
     end
+  end
+
+  ##
+  # The content address (a truncated checksum of the gem file) for a
+  # content-addressable ("skinny") gem, or nil. A gem opts in by providing this;
+  # #content_addressable? follows from it.
+
+  def content_address
+    nil
+  end
+
+  def content_addressable?
+    !content_address.nil?
   end
 
   ##

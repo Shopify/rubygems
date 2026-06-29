@@ -734,6 +734,14 @@ class Gem::Specification < Gem::BasicSpecification
   alias_method :activated?, :activated
 
   ##
+  # The content address of a content-addressable ("skinny") gem: a truncated
+  # checksum of the gem file used in place of the platform in its file name.
+  # Set by the installer from the gem file; nil for ordinary gems. Not persisted
+  # as a gemspec attribute (it is emitted only on the stub line via #to_ruby).
+
+  attr_accessor :content_address
+
+  ##
   # Autorequire was used by old RubyGems to automatically require a file.
   #
   # Deprecated: It is neither supported nor functional.
@@ -2370,9 +2378,15 @@ class Gem::Specification < Gem::BasicSpecification
   def to_ruby
     result = []
     result << "# -*- encoding: utf-8 -*-"
-    result << "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{platform} #{raw_require_paths.join("\0")}"
+    # For content-addressable ("skinny") gems the content address takes the
+    # platform's slot so even old RubyGems reconstruct the correct
+    # name-version-<sha> full_name (and thus find the gem dir); the real platform
+    # goes on its own distinctly-prefixed line that old RubyGems ignore.
+    slot = content_addressable? ? content_address : platform
+    result << "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{slot} #{raw_require_paths.join("\0")}"
     result << "#{Gem::StubSpecification::PREFIX}#{extensions.join "\0"}" unless
       extensions.empty?
+    result << "#{Gem::StubSpecification::TARGET_PREFIX}platform=#{platform}" if content_addressable?
     result << nil
     result << "Gem::Specification.new do |s|"
 

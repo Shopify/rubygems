@@ -10,11 +10,20 @@ class Gem::StubSpecification < Gem::BasicSpecification
   PREFIX = "# stub: "
 
   # :nodoc:
+  # Carries the target environment of a content-addressable ("skinny") gem as
+  # extensible `key=value` pairs (currently just `platform`; room for `glibc`,
+  # `engine`, etc. later without a new line). Distinct from PREFIX so older
+  # RubyGems (which key on "# stub: " to find the extensions line) ignore it: the
+  # content address occupies the platform slot on the main line, and the real
+  # platform is recorded here.
+  TARGET_PREFIX = "# stub-target: "
+
+  # :nodoc:
   OPEN_MODE = "r:UTF-8:-"
 
   class StubLine # :nodoc: all
     attr_reader :name, :version, :platform, :require_paths, :extensions,
-                :full_name
+                :full_name, :content_address
 
     NO_EXTENSIONS = [].freeze
 
@@ -33,7 +42,7 @@ class Gem::StubSpecification < Gem::BasicSpecification
       "lib" => ["lib"].freeze,
     }.freeze
 
-    def initialize(data, extensions)
+    def initialize(data, extensions, target = nil)
       parts          = data[PREFIX.length..-1].split(" ", 4)
       @name          = -parts[0]
       @version       = if Gem::Version.correct?(parts[1])
@@ -42,12 +51,23 @@ class Gem::StubSpecification < Gem::BasicSpecification
         Gem::Version.new(0)
       end
 
-      @platform      = Gem::Platform.new parts[2]
-      @extensions    = extensions
-      @full_name     = if platform == Gem::Platform::RUBY
+      suffix           = parts[2]
+      @extensions      = extensions
+      # When a target is present the suffix is the content address and the
+      # platform comes from the target; otherwise the suffix is the platform and
+      # there is no content address.
+      platform         = target && target["platform"]
+      if platform
+        @content_address = suffix
+        @platform        = Gem::Platform.new platform
+      else
+        @content_address = nil
+        @platform        = Gem::Platform.new suffix
+      end
+      @full_name       = if @platform == Gem::Platform::RUBY && @content_address.nil?
         "#{name}-#{version}"
       else
-        "#{name}-#{version}-#{platform}"
+        "#{name}-#{version}-#{suffix}"
       end
 
       path_list = parts.last
@@ -110,18 +130,27 @@ class Gem::StubSpecification < Gem::BasicSpecification
           file.readline # discard encoding line
           stubline = file.readline
           if stubline.start_with?(PREFIX)
-            extline = file.readline
+            extensions = StubLine::NO_EXTENSIONS
+            target = nil
 
-            extensions =
-              if extline.delete_prefix!(PREFIX)
-                extline.chomp!
-                extline.split "\0"
+            # The stub line may be followed, in any order, by an extensions line
+            # (`# stub: `) and a target line (`# stub-target: `), until a blank
+            # or code line ends the block.
+            loop do
+              line = file.readline
+              if line.delete_prefix!(TARGET_PREFIX)
+                line.chomp!
+                target = parse_target(line)
+              elsif line.delete_prefix!(PREFIX)
+                line.chomp!
+                extensions = line.split "\0"
               else
-                StubLine::NO_EXTENSIONS
+                break
               end
+            end
 
             stubline.chomp! # readline(chomp: true) allocates 3x as much as .readline.chomp!
-            @data = StubLine.new stubline, extensions
+            @data = StubLine.new stubline, extensions, target
           end
         rescue EOFError
         end
@@ -134,6 +163,18 @@ class Gem::StubSpecification < Gem::BasicSpecification
   end
 
   private :data
+
+  # Parse a `# stub-target: ` line's `key=value` pairs into a Hash. Extensible:
+  # unknown keys are simply carried through and ignored by readers that don't
+  # use them.
+  def parse_target(line)
+    line.split(" ").each_with_object({}) do |pair, target|
+      key, value = pair.split("=", 2)
+      target[key] = value if value
+    end
+  end
+
+  private :parse_target
 
   def raw_require_paths # :nodoc:
     data.require_paths
@@ -181,11 +222,27 @@ class Gem::StubSpecification < Gem::BasicSpecification
   end
 
   ##
+  # Content address (SHA prefix) of a content-addressable ("skinny") gem, or nil.
+
+  def content_address
+    data.content_address
+  end
+
+  ##
   # The full Gem::Specification for this gem, loaded from evalling its gemspec
 
   def spec
     @spec ||= loaded_spec if @data
     @spec ||= Gem::Specification.load(loaded_from)
+    # The content address lives on the stub line, not in the gemspec body, so a
+    # freshly-evalled spec wouldn't know its content-addressed full_name. Carry
+    # it over from the parsed stub line (referenced directly to avoid recursing
+    # through #data, which falls back to #to_spec when there is no stub line).
+    if @spec && @data.is_a?(StubLine) && @spec.content_address.nil?
+      address = @data.content_address
+      @spec.content_address = address if address && !address.empty?
+    end
+    @spec
   end
   alias_method :to_spec, :spec
 
