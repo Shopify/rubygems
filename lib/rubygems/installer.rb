@@ -266,6 +266,12 @@ class Gem::Installer
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
 
   def install
+    # For a content-addressable ("skinny") binary, derive the content address
+    # from the gem file name so full_name resolves to gems/name-version-<sha>/
+    # and the stub records it. Must run before any path (gem_dir/spec_file) is
+    # computed.
+    assign_content_address
+
     pre_install_checks
 
     run_pre_install_hooks
@@ -965,6 +971,33 @@ class Gem::Installer
   end
 
   private
+
+  ##
+  # Set the spec's content address from the gem file name for a
+  # content-addressable ("skinny") binary, so it installs under
+  # name-version-<sha> rather than name-version-platform.
+  #
+  # The address (and its width) is taken verbatim from the file name published
+  # by the registry / `gem build`, and only accepted when it is a genuine hex
+  # prefix of the gem file's own SHA-256 — so an ordinary gem whose name happens
+  # to end in hex is never mistaken for a skinny one.
+
+  def assign_content_address
+    # ephemeral installs (FakePackage) have no gem file to address
+    return unless @package.respond_to?(:gem)
+    return unless @package.gem.respond_to?(:path)
+
+    address = content_address_from_filename
+    spec.content_address = address if address
+  end
+
+  def content_address_from_filename
+    token = File.basename(@package.gem.path.to_s, ".gem").split("-").last
+    return unless token&.match?(/\A[0-9a-f]{8,64}\z/)
+
+    require "digest"
+    token if Digest::SHA256.file(@package.gem.path).hexdigest.start_with?(token)
+  end
 
   def user_install_dir
     # never install to user home in --build-root mode

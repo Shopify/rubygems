@@ -291,6 +291,49 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_equal "a requires b (> 2)", e.message
   end
 
+  def test_install_content_addressable_gem
+    _, gem_path = util_gem "skinny", "1.0.0" do |s|
+      s.platform = "x86_64-linux"
+    end
+
+    require "digest"
+    sha = Digest::SHA256.file(gem_path).hexdigest[0, 8]
+    ca_path = File.join File.dirname(gem_path), "skinny-1.0.0-#{sha}.gem"
+    FileUtils.mv gem_path, ca_path
+
+    installer = Gem::Installer.at ca_path, force: true
+    installed = use_ui(@ui) { installer.install }
+
+    assert installed.content_addressable?
+    assert_equal sha, installed.content_address
+    assert_equal "skinny-1.0.0-#{sha}", installed.full_name
+    assert_path_exist File.join(@gemhome, "gems", "skinny-1.0.0-#{sha}")
+    assert_path_exist File.join(@gemhome, "specifications", "skinny-1.0.0-#{sha}.gemspec")
+
+    # the installed stub reconstructs the same content-addressed identity, with
+    # the real platform for matching
+    stub = Gem::StubSpecification.gemspec_stub(
+      File.join(@gemhome, "specifications", "skinny-1.0.0-#{sha}.gemspec"),
+      @gemhome, File.join(@gemhome, "gems")
+    )
+    assert_equal "skinny-1.0.0-#{sha}", stub.full_name
+    assert_equal Gem::Platform.new("x86_64-linux"), stub.platform
+    assert_equal sha, stub.content_address
+  end
+
+  def test_install_non_content_addressable_gem_unchanged
+    _, gem_path = util_gem "fat", "2.0.0" do |s|
+      s.platform = "x86_64-linux"
+    end
+
+    installer = Gem::Installer.at gem_path, force: true
+    installed = use_ui(@ui) { installer.install }
+
+    refute installed.content_addressable?
+    assert_nil installed.content_address
+    assert_equal "fat-2.0.0-x86_64-linux", installed.full_name
+  end
+
   def test_ensure_loadable_spec
     a, a_gem = util_gem "a", 2 do |s|
       s.add_dependency "garbage ~> 5"
