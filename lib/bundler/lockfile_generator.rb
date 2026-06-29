@@ -103,15 +103,25 @@ module Bundler
     end
 
     def bundler_checksum
+      # `.dev` versions and `SKIP_BUNDLER_CHECKSUM` are deliberate opt-outs (used
+      # by Bundler/RubyGems' own development and release tasks): never record a
+      # checksum for Bundler itself in those cases.
       return [] if Bundler.gem_version.to_s.end_with?(".dev") || ENV["SKIP_BUNDLER_CHECKSUM"]
 
       bundler_spec = definition.sources.metadata_source.specs.search(["bundler", Bundler.gem_version]).last
-      return [] unless File.exist?(bundler_spec.cache_file)
 
-      require "rubygems/package"
+      # Record a fresh checksum from the locally cached gem when it's available.
+      # When it isn't (e.g. a fresh checkout/CI that never downloaded the bundler
+      # gem), fall back to whatever checksum is already locked rather than
+      # dropping it, so the entry stays consistent across environments.
+      if File.exist?(bundler_spec.cache_file)
+        require "rubygems/package"
 
-      package = Gem::Package.new(bundler_spec.cache_file)
-      definition.sources.metadata_source.checksum_store.register(bundler_spec, Checksum.from_gem_package(package))
+        package = Gem::Package.new(bundler_spec.cache_file)
+        definition.sources.metadata_source.checksum_store.register(bundler_spec, Checksum.from_gem_package(package))
+      end
+
+      return [] if definition.sources.metadata_source.checksum_store.missing?(bundler_spec)
 
       [definition.sources.metadata_source.checksum_store.to_lock(bundler_spec)]
     end

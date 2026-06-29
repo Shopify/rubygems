@@ -1791,6 +1791,43 @@ RSpec.describe "bundle update --bundler" do
     expect(out).to include("Using bundler 9.0.0")
   end
 
+  it "preserves the locked bundler checksum when re-locking without the bundler gem cached" do
+    system_gems "bundler-9.0.0"
+
+    build_repo4 do
+      build_gem "myrack", "1.0"
+      build_gem "weakling", "0.0.3"
+
+      build_bundler "9.0.0"
+    end
+
+    install_gemfile <<-G
+      source "https://gem.repo4"
+      gem "myrack"
+    G
+
+    system_gems "bundler-9.0.0", path: local_gem_path
+    bundle :update, bundler: "9.0.0", verbose: true
+
+    # Sanity check: the lockfile now records the bundler checksum.
+    expect(lockfile).to match(/^  bundler \(9\.0\.0\) sha256=/)
+
+    # Simulate a machine where the bundler gem is not present in the cache
+    # (e.g. a fresh CI checkout that never downloaded bundler-9.0.0.gem).
+    FileUtils.rm_f Dir[local_gem_path("cache", "bundler-9.0.0.gem")]
+    FileUtils.rm_f Dir[system_gem_path("cache", "bundler-9.0.0.gem")]
+
+    # Force a re-resolution / lockfile rewrite.
+    install_gemfile <<-G
+      source "https://gem.repo4"
+      gem "myrack"
+      gem "weakling"
+    G
+
+    # The bundler checksum must survive the rewrite, since it was already locked.
+    expect(lockfile).to match(/^  bundler \(9\.0\.0\) sha256=/)
+  end
+
   it "prints an error when trying to update bundler in frozen mode" do
     system_gems "bundler-9.0.0"
 
