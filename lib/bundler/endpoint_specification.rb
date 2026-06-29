@@ -38,13 +38,10 @@ module Bundler
       end
     end
 
-    def content_addressable?
-      !@content_address.nil?
-    end
-
     # For content-addressable gems the on-disk / lockfile / quick-index identity
     # is `name-version-<sha>`, even though #platform reports the real platform so
-    # that matching keeps working unchanged.
+    # that matching keeps working unchanged. #content_addressable? is derived from
+    # #content_address by the ContentAddressable mixin.
     def full_name
       if content_addressable?
         "#{@name}-#{@version}-#{@content_address}"

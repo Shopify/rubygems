@@ -267,7 +267,12 @@ module Bundler
 
     def all_versions_for(package)
       name = package.name
-      results = (@base[name] + filter_specs(@all_specs[name], package)).uniq {|spec| [spec.version.hash, spec.platform] }
+      # Content-addressable ("skinny") variants share a version and real platform
+      # but differ by content address (and Ruby ABI), so include it in the dedup
+      # key to keep them distinct until platform selection can prefer one.
+      results = (@base[name] + filter_specs(@all_specs[name], package)).uniq do |spec|
+        [spec.version.hash, spec.platform, spec.content_address]
+      end
 
       if name == "bundler" && !bundler_pinned_to_current_version?
         bundler_spec = Gem.loaded_specs["bundler"]

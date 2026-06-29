@@ -408,6 +408,11 @@ module Gem
     unless new.respond_to?(:installable_on_platform?)
       include(::Bundler::MatchPlatform)
     end
+
+    # Gem specs keep their native `installable_on_platform?` and so never receive
+    # MatchPlatform, so mix in the content-addressing defaults directly.
+    # Bundler::EndpointSpecification overrides these.
+    include(::Bundler::ContentAddressable) unless new.respond_to?(:content_addressable?)
   end
 
   require "rubygems/name_tuple"

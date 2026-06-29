@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
+require_relative "content_addressable"
+
 module Bundler
   module MatchPlatform
+    include ContentAddressable
+
     def installable_on_platform?(target_platform) # :nodoc:
       return true if [Gem::Platform::RUBY, nil, target_platform].include?(platform)
       return true if Gem::Platform.new(platform) === target_platform
@@ -11,8 +15,21 @@ module Bundler
 
     def self.select_best_platform_match(specs, platform, force_ruby: false, prefer_locked: false)
       matching = select_all_platform_match(specs, platform, force_ruby: force_ruby, prefer_locked: prefer_locked)
+      matching = prefer_content_addressable(matching)
 
       Gem::Platform.sort_and_filter_best_platform_match(matching, platform)
+    end
+
+    # When a content-addressable ("skinny") variant compatible with the running
+    # Ruby is present, prefer those exclusively; otherwise drop the skinny rows so
+    # the fat/source variant is selected, so a usable binary is never stranded.
+    # Per-minor `~>` ABI ranges are disjoint, so at most one skinny qualifies.
+    def self.prefer_content_addressable(matching)
+      addressable, regular = matching.partition(&:content_addressable?)
+      return matching if addressable.empty?
+
+      compatible = addressable.select(&:matches_current_ruby?)
+      compatible.any? ? compatible : regular
     end
 
     def self.select_best_local_platform_match(specs, force_ruby: false, locked_platforms: nil)
