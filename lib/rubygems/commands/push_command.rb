@@ -45,6 +45,18 @@ The push command will use ~/.gem/credentials to authenticate to a server, but yo
       @user_defined_host = true
     end
 
+    add_option("--platform PLATFORM",
+                "Push a gem for a specific platform",
+                "  (e.g. x86_64-darwin-20)") do |value, options|
+      options[:platform] = value
+    end
+
+    add_option("--ruby RUBY_ABI",
+                "Push a gem for a specific Ruby ABI",
+                "  (e.g. 3.2)") do |value, options|
+      options[:ruby] = value
+    end
+
     add_option("--attestation FILE",
                 "Push with sigstore attestations") do |value, options|
       options[:attestations] << value
@@ -54,7 +66,12 @@ The push command will use ~/.gem/credentials to authenticate to a server, but yo
   end
 
   def execute
-    gem_name = get_one_gem_name
+    if options[:ruby] || options[:platform]
+      gem_names = get_all_gem_names
+      gem_name = resolve_gem_name(gem_names)
+    else
+      gem_name = get_one_gem_name
+    end
     default_gem_server, push_host = get_hosts_for(gem_name)
 
     @host = if @user_defined_host
@@ -90,6 +107,21 @@ The push command will use ~/.gem/credentials to authenticate to a server, but yo
   end
 
   private
+
+  def resolve_gem_name(names)
+    names.select do |name|
+      spec = Gem::Package.new(name).spec
+      platform_matches?(spec, name) && ruby_matches?(spec, name)
+    end
+  end
+
+  def platform_matches?(spec, name)
+    !options[:platform] || spec.platform == Gem::Platform.new(options[:platform])
+  end
+
+  def ruby_matches?(spec, name)
+    !options[:ruby] || spec.required_ruby_version.satisfied_by?(Gem::Version.new(options[:ruby]))
+  end
 
   def send_push_request(name, args)
     # Always honor explicit --attestation option
