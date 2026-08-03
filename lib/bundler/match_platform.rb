@@ -2,6 +2,14 @@
 
 module Bundler
   module MatchPlatform
+    def content_address
+      nil
+    end
+
+    def content_addressable?
+      Gem::BasicSpecification.content_address?(content_address)
+    end
+
     def installable_on_platform?(target_platform) # :nodoc:
       return true if [Gem::Platform::RUBY, nil, target_platform].include?(platform)
       return true if Gem::Platform.new(platform) === target_platform
@@ -13,6 +21,14 @@ module Bundler
       matching = select_all_platform_match(specs, platform, force_ruby: force_ruby, prefer_locked: prefer_locked)
 
       Gem::Platform.sort_and_filter_best_platform_match(matching, platform)
+    end
+
+    def self.prefer_content_addressable(matching)
+      addressable, regular = matching.partition(&:content_addressable?)
+      return matching if addressable.empty?
+
+      compatible = addressable.select(&:matches_current_ruby?)
+      compatible.any? ? compatible : regular
     end
 
     def self.select_best_local_platform_match(specs, force_ruby: false, locked_platforms: nil)
@@ -32,7 +48,7 @@ module Bundler
         return locked_originally if locked_originally.any?
       end
 
-      matching
+      force_ruby ? matching : prefer_content_addressable(matching)
     end
 
     def self.generic_local_platform_is_ruby?
