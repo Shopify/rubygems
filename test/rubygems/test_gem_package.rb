@@ -236,6 +236,196 @@ class TestGemPackage < Gem::Package::TarTestCase
     assert_equal [{ "lib/code_sym.rb" => "code.rb" }, { "lib/code_sym2.rb" => "../lib/code.rb" }], symlinks
   end
 
+  def test_ruby_abi_creates_content_addressed_file
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    built_file = Gem::Package.build(spec, false, false, nil, "3.4")
+
+    assert_path_not_exist spec.file_name
+    assert_path_exist built_file
+    assert_match(/\Aplatformed-1-[0-9a-f]{8}\.gem\z/, built_file)
+  end
+
+  def test_ruby_abi_not_passed_does_not_create_content_addressed_file
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    built_file = Gem::Package.build(spec)
+
+    assert_path_exist built_file
+    assert_equal("platformed-1-arm64-darwin.gem", built_file)
+  end
+
+  def test_required_ruby_version_is_set_by_ruby_abi_if_default
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.default
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    built_file = Gem::Package.build(spec, false, false, nil, "3.4")
+
+    assert_path_exist built_file
+    assert_match(/\Aplatformed-1-[0-9a-f]{8}\.gem\z/, built_file)
+    assert_equal Gem::Requirement.new("~> 3.4.0"), spec.required_ruby_version
+  end
+
+  def test_required_ruby_version_is_not_modified_if_build_fails
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.default
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    # missing authors makes validation during the build raise
+    assert_raise Gem::InvalidSpecificationException do
+      Gem::Package.build(spec, false, false, nil, "3.4")
+    end
+
+    assert_equal Gem::Requirement.default, spec.required_ruby_version
+  end
+
+  def test_raise_if_required_ruby_version_conflicts_with_ruby_abi
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.5.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    e = assert_raise ArgumentError do
+      Gem::Package.build(spec, false, false, nil, "3.4")
+    end
+
+    assert_match "Cannot build gem for Ruby ABI 3.4 because required_ruby_version is set to ~> 3.5.0", e.message
+    assert_match "Please set required_ruby_version to \"~> 3.4.0\"", e.message
+    assert_equal Gem::Requirement.new("~> 3.5.0"), spec.required_ruby_version
+  end
+
+  def test_raise_if_ruby_abi_is_not_in_x_y_format
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    e = assert_raise ArgumentError do
+      Gem::Package.build(spec, false, false, nil, "3.4.5")
+    end
+
+    assert_match "Ruby ABI must be in X.Y format", e.message
+  end
+
+  def test_raise_if_spec_is_non_platformed_but_ruby_abi_is_passed
+    spec = Gem::Specification.new "non-platformed", "1"
+    spec.summary = "non-platformed"
+    spec.authors = "non-platformed"
+    spec.files = ["lib/code.rb"]
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    e = assert_raise ArgumentError do
+      Gem::Package.build(spec, false, false, nil, "3.4")
+    end
+
+    assert_match "no platform or a Ruby platform has been set", e.message
+  end
+
+  def test_explicit_output_keeps_requested_filename
+    spec = Gem::Specification.new "explicit", "1"
+    spec.summary = "explicit"
+    spec.authors = "explicit"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    built_file = Gem::Package.build(spec, false, false, "explicit-output.gem")
+
+    assert_path_exist built_file
+    assert_equal("explicit-output.gem", built_file)
+  end
+
+  def test_explicit_output_and_ruby_abi_raises
+    spec = Gem::Specification.new "explicit", "1"
+    spec.summary = "explicit"
+    spec.authors = "explicit"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.default
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    e = assert_raise ArgumentError do
+      Gem::Package.build(spec, false, false, "explicit-output.gem", "3.4")
+    end
+
+    assert_match "Cannot specify both a Ruby ABI and an output file name", e.message
+    assert_equal Gem::Requirement.default, spec.required_ruby_version
+    assert_path_not_exist "explicit-output.gem"
+  end
+
   def test_build
     spec = Gem::Specification.new "build", "1"
     spec.summary = "build"
