@@ -129,15 +129,53 @@ class Gem::Package
   # Permission for other files
   attr_accessor :data_mode
 
-  def self.build(spec, skip_validation = false, strict_validation = false, file_name = nil)
-    gem_file = file_name || spec.file_name
+  ##
+  # The number of characters of the SHA-256 digest of the gem contents used
+  # in a content-addressable gem file name.
 
-    package = new gem_file
-    package.spec = spec
-    package.build skip_validation, strict_validation
+  DEFAULT_CONTENT_ADDRESS_LENGTH = 8
 
+  def self.build(spec, skip_validation = false, strict_validation = false, file_name = nil, ruby_abi = nil)
+    if ruby_abi && file_name
+      raise ArgumentError, "Cannot specify both a Ruby ABI and an output file name because content addressable gems must use the generated file name."
+    end
+    if ruby_abi
+      require "digest"
+      require "stringio"
+
+      validate_ruby_abi(spec, ruby_abi)
+
+      build_spec = spec.dup
+      build_spec.required_ruby_version = Gem::Requirement.new("~> #{ruby_abi}.0")
+
+      io = StringIO.new
+      io.set_encoding(Encoding::BINARY)
+
+      package = new io
+      package.spec = build_spec
+      gem_file = package.build_content_addressable_file skip_validation, strict_validation
+
+      spec.required_ruby_version = build_spec.required_ruby_version
+    else
+      gem_file = file_name || spec.file_name
+
+      package = new gem_file
+      package.spec = spec
+      package.build skip_validation, strict_validation
+    end
     gem_file
   end
+
+  def self.validate_ruby_abi(spec, ruby_abi)
+    if !/\A\d+\.\d+\z/.match?(ruby_abi)
+      raise ArgumentError, "Ruby ABI must be in X.Y format"
+    elsif spec.platform.nil? || spec.platform == Gem::Platform::RUBY
+      raise ArgumentError, "Cannot build a gem scoped to a single Ruby ABI as no platform or a Ruby platform has been set"
+    elsif spec.required_ruby_version && spec.required_ruby_version != Gem::Requirement.default && spec.ruby_abi != ruby_abi
+      raise ArgumentError, "Cannot build gem for Ruby ABI #{ruby_abi} because required_ruby_version is set to #{spec.required_ruby_version}. Please set required_ruby_version to \"~> #{ruby_abi}.0\"."
+    end
+  end
+  private_class_method :validate_ruby_abi
 
   ##
   # Creates a new Gem::Package for the file at +gem+. +gem+ can also be
@@ -315,14 +353,33 @@ class Gem::Package
       end
     end
 
-    say <<-EOM
+    message = <<-EOM
   Successfully built RubyGem
   Name: #{@spec.name}
   Version: #{@spec.version}
-  File: #{File.basename @gem.path}
 EOM
+
+    message += "  File: #{File.basename(@gem.path)}\n" if @gem.path
+    say message
   ensure
     @signer = nil
+  end
+
+  ##
+  # Builds this package, then writes it to a content-addressable file name
+  # derived from the SHA-256 digest of the gem contents, e.g.
+  # "example-1.0-01234567.gem". Returns the file name of the written gem.
+
+  def build_content_addressable_file(skip_validation = false, strict_validation = false)
+    build skip_validation, strict_validation
+
+    bytes = @gem.with_read_io(&:read)
+    gem_file = "#{@spec.name}-#{@spec.version}-#{Digest::SHA256.hexdigest(bytes)[0, DEFAULT_CONTENT_ADDRESS_LENGTH]}.gem"
+    File.binwrite(gem_file, bytes)
+
+    say "  File: #{gem_file}"
+
+    gem_file
   end
 
   ##
