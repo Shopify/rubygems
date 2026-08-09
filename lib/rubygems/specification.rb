@@ -2402,11 +2402,12 @@ class Gem::Specification < Gem::BasicSpecification
   # still have their default values are omitted.
 
   def to_ruby
-    gem_suffix = content_addressable? ? content_address : platform
+    content_addressed = Gem::ContentAddress.content_addressed?(self)
+    gem_suffix = content_addressed ? content_address : platform
     result = []
     result << "# -*- encoding: utf-8 -*-"
     result << "#{Gem::StubSpecification::PREFIX}#{name} #{version} #{gem_suffix} #{raw_require_paths.join("\0")}"
-    result << "#{Gem::StubSpecification::TARGET_PREFIX}platform=#{platform}" if content_addressable?
+    result << "#{Gem::StubSpecification::TARGET_PREFIX}platform=#{platform}" if content_addressed
     result << "#{Gem::StubSpecification::PREFIX}#{extensions.join "\0"}" unless
       extensions.empty?
     result << nil
@@ -2417,7 +2418,7 @@ class Gem::Specification < Gem::BasicSpecification
     unless platform.nil? || platform == Gem::Platform::RUBY
       result << "  s.platform = #{ruby_code original_platform}"
     end
-    result << "  s.content_address = #{ruby_code content_address} if s.respond_to? :content_address=" if content_addressable?
+    result << "  s.content_address = #{ruby_code content_address} if s.respond_to? :content_address=" if content_addressed
     result << ""
     result << "  s.required_rubygems_version = #{ruby_code required_rubygems_version} if s.respond_to? :required_rubygems_version="
 

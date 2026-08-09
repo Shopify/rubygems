@@ -48,7 +48,7 @@ class Gem::StubSpecification < Gem::BasicSpecification
       suffix = parts[2]
       target_platform = target && target["platform"]
       @platform = Gem::Platform.new(target_platform || suffix)
-      @content_address = suffix if Gem::BasicSpecification.content_address?(suffix)
+      @content_address = suffix if Gem::ContentAddress.match?(suffix)
       @extensions    = extensions
       @full_name     = if @content_address
         "#{name}-#{version}-#{content_address}"

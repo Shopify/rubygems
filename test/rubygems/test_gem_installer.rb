@@ -1032,7 +1032,10 @@ class TestGemInstaller < Gem::InstallerTestCase
   end
 
   def test_install_assigns_content_address_from_filename
-    _, a_gem = util_gem "a", 2
+    _, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
+    end
 
     digest = Digest::SHA256.file(a_gem).hexdigest
     address = digest[0, 8]
@@ -1051,7 +1054,10 @@ class TestGemInstaller < Gem::InstallerTestCase
   end
 
   def test_install_raises_for_mismatched_content_address
-    _, a_gem = util_gem "a", 2
+    _, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
+    end
     dir = File.dirname(a_gem)
     filename = File.join(dir, "a-2-deadbeef.gem")
     FileUtils.cp a_gem, filename
@@ -1075,9 +1081,66 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_path_exist File.join(@gemhome, "specifications", "a-2.gemspec")
   end
 
+  def test_numeric_version_not_treated_as_content_address
+    _, a_gem = util_gem "a", "20240101"
+    installer = Gem::Installer.at a_gem, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_nil spec.content_address
+    assert_equal "a-20240101", spec.full_name
+    assert_path_exist File.join(@gemhome, "gems", "a-20240101")
+    assert_path_exist File.join(@gemhome, "specifications", "a-20240101.gemspec")
+  end
+
+  def test_content_address_not_set_without_required_ruby_version_and_platform
+    _, a_gem = util_gem "a", 2
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    address = digest[0, 8]
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "a-2-#{address}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_nil spec.content_address
+    assert_equal "a-2", spec.full_name
+  end
+
+  def test_content_address_not_set_with_only_required_ruby_version
+    _, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+    end
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    address = digest[0, 8]
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "a-2-#{address}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_nil spec.content_address
+  end
+
+  def test_content_address_not_set_with_only_platform
+    _, a_gem = util_gem("a", 2) do |spec|
+      spec.platform = "x86_64-linux"
+    end
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    address = digest[0, 8]
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "a-2-#{address}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_nil spec.content_address
+  end
+
   def test_require_works_after_content_addressed_install
-    source_spec, a_gem = util_gem "a", 2 do |spec|
+    source_spec, a_gem = util_gem("a", 2) do |spec|
       spec.files = ["lib/ca_activation_test.rb"]
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
     end
     FileUtils.rm_rf source_spec.gem_dir
 
@@ -1096,7 +1159,10 @@ class TestGemInstaller < Gem::InstallerTestCase
   end
 
   def test_reinstalling_content_addressed_gem_is_idempotent
-    source_spec, a_gem = util_gem "a", 2
+    source_spec, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
+    end
     FileUtils.rm_rf source_spec.gem_dir
 
     digest = Digest::SHA256.file(a_gem).hexdigest

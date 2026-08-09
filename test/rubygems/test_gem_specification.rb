@@ -1963,17 +1963,11 @@ dependencies: []
 
   def test_content_addressable_full_name
     @a1 = Gem::Specification.new "a", 1
+    @a1.required_ruby_version = ">= 3.0"
     @a1.platform = "x86_64-linux"
     @a1.content_address = "abcdef12"
     assert_equal "a-1-abcdef12", @a1.full_name
     assert_equal "x86_64-linux", @a1.platform.to_s
-  end
-
-  def test_content_address_predicate
-    assert Gem::BasicSpecification.content_address?("abcdef12")
-    refute Gem::BasicSpecification.content_address?("x86_64-linux")
-    refute Gem::BasicSpecification.content_address?(nil)
-    refute Gem::BasicSpecification.content_address?("abc")
   end
 
   def test_full_name_windows
@@ -2004,10 +1998,12 @@ dependencies: []
 
   def test_content_addressable_specs_are_distinct
     first = Gem::Specification.new "a", 1
+    first.required_ruby_version = ">= 3.0"
     first.platform = "arm64-darwin"
     first.content_address = "abcdef12"
 
     second = Gem::Specification.new "a", 1
+    second.required_ruby_version = ">= 3.0"
     second.platform = "arm64-darwin"
     second.content_address = "12345678"
 
@@ -2410,6 +2406,7 @@ end
 
   def test_to_ruby_content_addressable
     spec = Gem::Specification.new "a", 1
+    spec.required_ruby_version = ">= 3.0"
     spec.platform = "x86_64-linux"
     spec.content_address = "abcdef12"
     spec.extensions = ["ext/a/extconf.rb"]

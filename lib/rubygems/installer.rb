@@ -117,6 +117,9 @@ class Gem::Installer
 
     def gem
     end
+
+    def content_address
+    end
   end
 
   ##
@@ -971,23 +974,9 @@ class Gem::Installer
   private
 
   def assign_content_address
-    path = @package.gem&.path
-    address = derive_content_address_from_filename(path)
+    address = @package.content_address
     @gem_dir = nil if address != spec.content_address
     spec.content_address = address
-  end
-
-  def derive_content_address_from_filename(path)
-    return unless path
-
-    filename = File.basename(path, ".gem")
-    token = filename.split("-").last
-    return nil unless Gem::BasicSpecification.content_address?(token)
-
-    require "digest"
-    digest = Digest::SHA256.file(path).hexdigest
-    raise Gem::InstallError, "content address mismatch for #{File.basename(path)}" unless digest.start_with?(token)
-    token
   end
 
   def user_install_dir
