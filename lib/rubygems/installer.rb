@@ -114,6 +114,12 @@ class Gem::Installer
 
     def copy_to(path)
     end
+
+    def gem
+    end
+
+    def content_address
+    end
   end
 
   ##
@@ -266,6 +272,7 @@ class Gem::Installer
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
 
   def install
+    assign_content_address
     pre_install_checks
 
     run_pre_install_hooks
@@ -965,6 +972,12 @@ class Gem::Installer
   end
 
   private
+
+  def assign_content_address
+    address = @package.content_address
+    @gem_dir = nil if address != spec.content_address
+    spec.content_address = address
+  end
 
   def user_install_dir
     # never install to user home in --build-root mode
