@@ -61,6 +61,11 @@ class Gem::Resolver::Specification
   attr_reader :created_at
 
   ##
+  # The content address of this specification.
+
+  attr_reader :content_address
+
+  ##
   # Sets default instance variables for the specification.
 
   def initialize
@@ -73,6 +78,7 @@ class Gem::Resolver::Specification
     @version      = nil
     @required_ruby_version = Gem::Requirement.default
     @required_rubygems_version = Gem::Requirement.default
+    @content_address = nil
   end
 
   ##

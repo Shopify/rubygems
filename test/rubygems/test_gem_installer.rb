@@ -1092,12 +1092,38 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_path_exist File.join(@gemhome, "specifications", "a-20240101.gemspec")
   end
 
+  def test_normal_gem_with_hex_suffix_is_not_content_addressed
+    _, a_gem = util_gem "a", 2 do |spec|
+      spec.platform = Gem::Platform.new("x86-linux-deadbeef")
+    end
+    installer = Gem::Installer.at a_gem, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_nil spec.content_address
+    assert_equal "a-2-x86-linux-deadbeef", spec.full_name
+  end
+
   def test_content_address_not_set_without_required_ruby_version_and_platform
     _, a_gem = util_gem "a", 2
     digest = Digest::SHA256.file(a_gem).hexdigest
     address = digest[0, 8]
     dir = File.dirname(a_gem)
     filename = File.join(dir, "a-2-#{address}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_nil spec.content_address
+    assert_equal "a-2", spec.full_name
+  end
+
+  def test_hex_suffix_without_matching_spec_prefix_is_not_content_addressed
+    _, a_gem = util_gem "a", 2
+
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    address = digest[0, 8]
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "wrong_name-2-#{address}.gem")
     FileUtils.cp a_gem, filename
     installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
     spec = installer.install
