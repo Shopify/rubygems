@@ -373,7 +373,7 @@ class TestGemDependencyInstaller < Gem::TestCase
     end
     e1_gem = e1.cache_file
 
-    _, f1_gem = util_gem "f", "1", "e" => nil
+    _, f1_gem = util_gem "f", "1", { "e" => nil }
 
     Gem::Installer.at(e1_gem).install
     FileUtils.rm_r e1.extension_dir
@@ -394,7 +394,7 @@ class TestGemDependencyInstaller < Gem::TestCase
 
   def test_install_dependency_old
     _, e1_gem = util_gem "e", "1"
-    _, f1_gem = util_gem "f", "1", "e" => nil
+    _, f1_gem = util_gem "f", "1", { "e" => nil }
     _, f2_gem = util_gem "f", "2"
 
     FileUtils.mv e1_gem, @tempdir
@@ -507,7 +507,7 @@ class TestGemDependencyInstaller < Gem::TestCase
   end
 
   def test_install_compact_index_api
-    a1, a1_gem = util_gem "a", 1, "b" => ">= 1"
+    a1, a1_gem = util_gem "a", 1, { "b" => ">= 1" }
     b1, b1_gem = util_gem "b", 1
 
     util_setup_compact_index a1, b1
