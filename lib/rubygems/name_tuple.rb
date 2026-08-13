@@ -6,16 +6,18 @@
 # wrap the data returned from the indexes.
 
 class Gem::NameTuple
-  def initialize(name, version, platform = Gem::Platform::RUBY)
+  def initialize(name, version, platform = Gem::Platform::RUBY, content_address: nil, ruby_abi: nil)
     @name = name
     @version = version
 
     platform &&= platform.to_s
     platform = Gem::Platform::RUBY if !platform || platform.empty?
     @platform = platform
+    @content_address = content_address unless content_address.nil?
+    @ruby_abi = ruby_abi unless ruby_abi.nil?
   end
 
-  attr_reader :name, :version, :platform
+  attr_reader :name, :version, :platform, :content_address, :ruby_abi
 
   ##
   # Turn an array of [name, version, platform] into an array of
@@ -46,12 +48,15 @@ class Gem::NameTuple
   # of Gem::Specification#full_name.
 
   def full_name
-    case @platform
-    when nil, "", Gem::Platform::RUBY
-      "#{@name}-#{@version}"
-    else
-      "#{@name}-#{@version}-#{@platform}"
-    end
+    full_name = "#{@name}-#{@version}"
+    suffix = @content_address || platform_suffix
+    suffix ? "#{full_name}-#{suffix}" : full_name
+  end
+
+  private def platform_suffix # :nodoc:
+    return if @platform.nil? || @platform.empty? || @platform == Gem::Platform::RUBY
+
+    @platform
   end
 
   ##
@@ -84,18 +89,27 @@ class Gem::NameTuple
   alias_method :deconstruct, :to_a
 
   def deconstruct_keys(keys)
-    { name: @name, version: @version, platform: @platform }
+    {
+      name: @name,
+      version: @version,
+      platform: @platform,
+      content_address: @content_address,
+      ruby_abi: @ruby_abi,
+    }
   end
 
   def inspect # :nodoc:
-    "#<Gem::NameTuple #{@name}, #{@version}, #{@platform}>"
+    "#<Gem::NameTuple name=#{@name} version=#{@version} platform=#{@platform} content_address=#{@content_address} ruby_abi=#{@ruby_abi}>"
   end
 
   alias_method :to_s, :inspect # :nodoc:
 
   def <=>(other)
-    [@name, @version, Gem::Platform.sort_priority(@platform)] <=>
-      [other.name, other.version, Gem::Platform.sort_priority(other.platform)]
+    sort_key <=> other.sort_key
+  end
+
+  def sort_key # :nodoc:
+    [@name, @version, Gem::Platform.sort_priority(@platform), @content_address.to_s, @ruby_abi.to_s]
   end
 
   include Comparable
@@ -109,7 +123,9 @@ class Gem::NameTuple
     when self.class
       @name == other.name &&
         @version == other.version &&
-        @platform == other.platform
+        @platform == other.platform &&
+        @content_address == other.content_address &&
+        @ruby_abi == other.ruby_abi
     when Array
       to_a == other
     else
@@ -120,6 +136,6 @@ class Gem::NameTuple
   alias_method :eql?, :==
 
   def hash
-    to_a.hash
+    [@name, @version, @platform, @content_address, @ruby_abi].hash
   end
 end
