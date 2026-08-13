@@ -42,6 +42,119 @@ class TestGemCommandsInfoCommand < Gem::TestCase
     assert_match "", @ui.error
   end
 
+  def test_execute_remote_content_addressable_gem_displays_real_platform_and_ruby_abi
+    spec_fetcher {}
+
+    spec = util_spec "a", "1" do |s|
+      s.platform = "x86_64-linux"
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    spec.content_address = "abcdef12"
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux\n")
+
+    path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-abcdef12.gemspec.rz"
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a --remote]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_include @ui.output, "Platforms:\n"
+    assert_include @ui.output, "        x86_64-linux Ruby ABI: 3.3\n"
+    refute_match "abcdef12", @ui.output
+  end
+
+  def test_execute_remote_content_addressable_gem_displays_ruby_abis_next_to_their_platforms
+    spec_fetcher {}
+
+    spec = util_spec "a", "1" do |s|
+      s.platform = "x86_64-linux"
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    spec.content_address = "abcdef12"
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,1-fedcba98 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= x86_64-linux-musl
+    INFO
+
+    path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-abcdef12.gemspec.rz"
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-fedcba98.gemspec.rz"
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a --remote]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_include @ui.output, "Platforms:\n"
+    assert_include @ui.output, "        x86_64-linux Ruby ABI: 3.3\n"
+    assert_include @ui.output, "        x86_64-linux-musl Ruby ABI: 3.4\n"
+    refute_match "Ruby ABIs: 3.3, 3.4", @ui.output
+    refute_match "abcdef12", @ui.output
+    refute_match "fedcba98", @ui.output
+  end
+
+  def test_execute_remote_content_addressable_and_platform_gems_display_together
+    spec_fetcher {}
+
+    spec = util_spec "a", "3" do |s|
+      s.platform = "arm64-darwin"
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    spec.content_address = "fedcba98"
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-x86_64-linux,2-abcdef12,3-fedcba98 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      2-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      3-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= arm64-darwin
+    INFO
+
+    path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-3-fedcba98.gemspec.rz"
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a --remote --all]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_include @ui.output, "a (3, 2, 1)"
+    assert_include @ui.output, "Platforms:\n"
+    assert_include @ui.output, "        1: x86_64-linux\n"
+    assert_include @ui.output, "        2: x86_64-linux Ruby ABI: 3.3\n"
+    assert_include @ui.output, "        3: arm64-darwin Ruby ABI: 3.4\n"
+    refute_match "abcdef12", @ui.output
+    refute_match "fedcba98", @ui.output
+  end
+
   def test_execute_with_version_flag
     spec_fetcher do |fetcher|
       fetcher.spec "coolgem", "1.0"
