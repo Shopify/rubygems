@@ -344,7 +344,7 @@ class TestGemSafeMarshal < Gem::TestCase
     end
   end
 
-  def test_name_tuple_unmarshall_content_addressable_metadata
+  def test_name_tuple_unmarshal_content_addressable_metadata
     tuple = Gem::NameTuple.new(
       "a",
       Gem::Version.new("1"),
@@ -363,7 +363,7 @@ class TestGemSafeMarshal < Gem::TestCase
     assert_equal "a-1-abcdef12", unmarshalled_tuple.full_name
   end
 
-  def test_name_tuple_unmarshall_legacy_payload_without_content_addressable_metadata
+  def test_name_tuple_unmarshal_legacy_payload_without_content_addressable_metadata
     tuple = Gem::NameTuple.allocate
     tuple.instance_variable_set :@name, "a"
     tuple.instance_variable_set :@version, Gem::Version.new("1")
