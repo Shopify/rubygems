@@ -185,6 +185,37 @@ class Gem::Source
     end
   end
 
+  def decode_content_addressable_tuples(tuples, latest: false) # :nodoc:
+    ca_tuples = tuples.select(&:content_address)
+    return tuples if ca_tuples.empty?
+
+    decoded_tuples = ca_tuples.group_by(&:name).flat_map do |name, name_tuples|
+      rows = name_tuples.map do |tuple|
+        [tuple.name, tuple.version, tuple.version.to_s, tuple.content_address]
+      end
+
+      content_addressable_tuples(name, rows)
+    end
+
+    decoded_by_key = decoded_tuples.to_h do |tuple|
+      [[tuple.name, tuple.version, tuple.content_address], tuple]
+    end
+
+    decoded = tuples.filter_map do |tuple|
+      if tuple.content_address
+        decoded_by_key[[tuple.name, tuple.version, tuple.content_address]]
+      else
+        tuple
+      end
+    end
+
+    return decoded unless latest
+
+    decoded.group_by(&:name).flat_map do |_, name_tuples|
+      max_versions_by_platform(name_tuples)
+    end
+  end
+
   ##
   # The publish time of gem +name+ at +version+ for +platform+, when this
   # source provides it through the compact index created_at metadata.
@@ -290,36 +321,16 @@ class Gem::Source
     tuples = []
 
     versions.each_value do |rows|
-      info_rows = nil
-
-      gem_tuples = rows.filter_map do |name, version_string, suffix|
+      gem_tuples = rows.filter_map do |row_name, version_string, suffix|
         next unless Gem::Version.correct?(version_string)
 
         version = Gem::Version.new(version_string)
         next if version.prerelease? != (type == :prerelease)
 
         suffix ||= "ruby"
-        platform = suffix
-        content_address = nil
-        ruby_abi = nil
+        content_address = suffix if Gem::ContentAddress.match?(suffix)
 
-        if Gem::ContentAddress.match?(suffix)
-          info_rows ||= compact_index_info_rows(name)
-          metadata = content_addressable_metadata(info_rows, version_string, suffix)
-          next unless metadata
-
-          platform = metadata[:platform]
-          content_address = suffix
-          ruby_abi = metadata[:ruby_abi]
-        end
-
-        Gem::NameTuple.new(
-          name,
-          version,
-          platform,
-          content_address: content_address,
-          ruby_abi: ruby_abi
-        )
+        Gem::NameTuple.new(row_name, version, suffix, content_address: content_address)
       end
 
       gem_tuples = max_versions_by_platform(gem_tuples) if type == :latest
@@ -343,27 +354,43 @@ class Gem::Source
     []
   end
 
-  def compact_index_info_row(info_rows, version, suffix)
-    info_rows.find do |row|
-      row_version = row[Gem::CompactIndexClient::INFO_VERSION]
-      row_suffix = row[Gem::CompactIndexClient::INFO_PLATFORM]
+  def content_addressable_tuples(name, rows)
+    metadata = content_addressable_metadata(name, rows)
 
-      row_version == version && row_suffix == suffix
+    rows.filter_map do |row_name, version, version_string, suffix|
+      row_metadata = metadata[[version_string, suffix]]
+      next unless row_metadata
+
+      Gem::NameTuple.new(
+        row_name,
+        version,
+        row_metadata[:platform],
+        content_address: suffix,
+        ruby_abi: row_metadata[:ruby_abi]
+      )
     end
   end
 
-  def content_addressable_metadata(info_rows, version, suffix)
-    info_row = compact_index_info_row(info_rows, version, suffix)
-    return unless info_row
+  def content_addressable_metadata(name, rows)
+    wanted_rows = rows.to_h do |_, _, version, suffix|
+      [[version, suffix], true]
+    end
 
-    requirements = compact_index_requirements(info_row)
-    platform = required_platform_from(requirements[:platform])
-    return unless platform
+    compact_index_info_rows(name).each_with_object({}) do |info_row, metadata|
+      version = info_row[Gem::CompactIndexClient::INFO_VERSION]
+      suffix = info_row[Gem::CompactIndexClient::INFO_PLATFORM]
+      key = [version, suffix]
+      next unless wanted_rows[key]
 
-    {
-      platform: platform,
-      ruby_abi: ruby_abi_from(requirements[:ruby]),
-    }
+      requirements = compact_index_requirements(info_row)
+      platform = required_platform_from(requirements[:platform])
+      next unless platform
+
+      metadata[key] = {
+        platform: platform,
+        ruby_abi: ruby_abi_from(requirements[:ruby]),
+      }
+    end
   end
 
   def compact_index_requirements(info_row)

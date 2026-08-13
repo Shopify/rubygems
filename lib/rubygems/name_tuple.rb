@@ -48,15 +48,13 @@ class Gem::NameTuple
   # of Gem::Specification#full_name.
 
   def full_name
-    full_name = "#{@name}-#{@version}"
-    suffix = @content_address || platform_suffix
-    suffix ? "#{full_name}-#{suffix}" : full_name
-  end
-
-  private def platform_suffix # :nodoc:
-    return if @platform.nil? || @platform.empty? || @platform == Gem::Platform::RUBY
-
-    @platform
+    if @content_address
+      "#{@name}-#{@version}-#{@content_address}"
+    elsif @platform.nil? || @platform.empty? || @platform == Gem::Platform::RUBY
+      "#{@name}-#{@version}"
+    else
+      "#{@name}-#{@version}-#{@platform}"
+    end
   end
 
   ##
@@ -136,6 +134,6 @@ class Gem::NameTuple
   alias_method :eql?, :==
 
   def hash
-    [@name, @version, @platform, @content_address, @ruby_abi].hash
+    to_a.hash
   end
 end
