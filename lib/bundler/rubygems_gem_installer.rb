@@ -14,6 +14,8 @@ module Bundler
     end
 
     def install
+      assign_content_address
+
       pre_install_checks
 
       run_pre_install_hooks

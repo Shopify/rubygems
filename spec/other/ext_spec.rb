@@ -53,3 +53,13 @@ RSpec.describe "Gem::NameTuple" do
     end
   end
 end
+
+RSpec.describe Bundler::LazySpecification do
+  describe "#to_lock" do
+    it "appends the content address after the platform lock name when set" do
+      spec = Bundler::LazySpecification.new("mygem", v("1.0"), "x86_64-linux", nil, content_address: "abcdef1234")
+
+      expect(spec.to_lock).to eq("    mygem (1.0-abcdef1234) x86_64-linux\n")
+    end
+  end
+end
