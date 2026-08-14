@@ -66,7 +66,7 @@ module Bundler
     end
 
     def full_name
-      @full_name ||= if @content_address
+      @full_name ||= if Gem::ContentAddress.match?(@content_address) && platform != Gem::Platform::RUBY
         "#{@name}-#{@version}-#{@content_address}"
       elsif platform == Gem::Platform::RUBY
         "#{@name}-#{@version}"
@@ -80,7 +80,7 @@ module Bundler
     end
 
     def name_tuple
-      Gem::NameTuple.new(@name, @version, @platform)
+      Gem::NameTuple.new(@name, @version, @platform, content_address: @content_address)
     end
 
     def ==(other)
@@ -117,7 +117,11 @@ module Bundler
 
     def to_lock
       out = String.new
-      out << "    #{lock_name}\n"
+      out << "    #{lock_name}"
+      # Append the platform additionally for content-addressable gems that contain a SHA
+      # where the platform would otherwise be
+      out << " #{platform}" if Gem::ContentAddress.match?(content_address) && platform != Gem::Platform::RUBY
+      out << "\n"
 
       dependencies.sort_by(&:to_s).uniq.each do |dep|
         next if dep.type == :development

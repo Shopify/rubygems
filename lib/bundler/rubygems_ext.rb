@@ -23,6 +23,10 @@ unless Gem::NameTuple.method_defined?(:content_address)
   Gem::NameTuple.attr_reader :content_address
 end
 
+unless Gem::Installer.private_method_defined?(:assign_content_address)
+  Gem::Installer.send(:define_method, :assign_content_address) {}
+end
+
 module Gem
   # Can be removed once RubyGems 4.0.0 support is dropped
   unless defined?(Gem::ContentAddress)
@@ -451,6 +455,15 @@ module Gem
         else
           initialize_with_platform(name, version, platform)
         end
+      end
+    end
+
+    unless instance_method(:initialize).parameters.any? {|kind, name| kind == :key && name == :content_address }
+      alias_method :initialize_without_content_address, :initialize
+
+      def initialize(name, version, platform = Gem::Platform::RUBY, content_address: nil)
+        initialize_without_content_address(name, version, platform)
+        @content_address = content_address
       end
     end
 
