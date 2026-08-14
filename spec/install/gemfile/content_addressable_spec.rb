@@ -30,6 +30,11 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
       G
 
       expect(the_bundle).to include_gems "mygem 1.0 content_addressed"
+
+      cached_files = Dir.glob(default_bundle_path("cache", "mygem-1.0-*.gem").to_s)
+      expect(cached_files.size).to eq(1), "expected exactly one cached gem file, found: #{cached_files}"
+      expect(cached_files.first).to match(/mygem-1\.0-[0-9a-f]{8}\.gem$/)
+      expect(default_bundle_path("cache", "mygem-1.0-x86_64-linux.gem")).not_to exist
     end
   end
 

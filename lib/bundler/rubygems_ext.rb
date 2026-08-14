@@ -15,7 +15,7 @@ require "rubygems/source"
 
 # Can be removed once RubyGems 4.0.0 support is dropped
 unless Gem::BasicSpecification.method_defined?(:content_address)
-  Gem::BasicSpecification.attr_reader :content_address
+  Gem::BasicSpecification.attr_accessor :content_address
 end
 
 # Can be removed once RubyGems 4.0.0 support is dropped
