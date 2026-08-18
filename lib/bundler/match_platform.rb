@@ -2,6 +2,10 @@
 
 module Bundler
   module MatchPlatform
+    def content_address
+      nil
+    end
+
     def installable_on_platform?(target_platform) # :nodoc:
       return true if [Gem::Platform::RUBY, nil, target_platform].include?(platform)
       return true if Gem::Platform.new(platform) === target_platform
@@ -11,13 +15,24 @@ module Bundler
 
     def self.select_best_platform_match(specs, platform, force_ruby: false, prefer_locked: false)
       matching = select_all_platform_match(specs, platform, force_ruby: force_ruby, prefer_locked: prefer_locked)
+      matching = prefer_content_addressable(matching)
 
       Gem::Platform.sort_and_filter_best_platform_match(matching, platform)
     end
 
+    def self.prefer_content_addressable(matching)
+      addressable, non_addressable = matching.partition {|s| Gem::ContentAddress.match?(s.content_address) }
+      return matching if addressable.empty?
+
+      compatible = addressable.select(&:matches_current_ruby?)
+      compatible.any? ? compatible : non_addressable
+    end
+
     def self.select_best_local_platform_match(specs, force_ruby: false, locked_platforms: nil)
       local = Bundler.local_platform
-      matching = select_all_platform_match(specs, local, force_ruby: force_ruby).filter_map {|spec| spec.materialized_for_installation(locked_platforms) }
+      matching = select_all_platform_match(specs, local, force_ruby: force_ruby)
+      matching = prefer_content_addressable(matching)
+      matching = matching.filter_map {|spec| spec.materialized_for_installation(locked_platforms) }
 
       Gem::Platform.sort_best_platform_match(matching, local)
     end
@@ -31,7 +46,6 @@ module Bundler
         locked_originally = matching.select {|spec| spec.is_a?(::Bundler::LazySpecification) }
         return locked_originally if locked_originally.any?
       end
-
       matching
     end
 

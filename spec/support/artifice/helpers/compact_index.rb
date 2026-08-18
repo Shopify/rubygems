@@ -85,7 +85,7 @@ class CompactIndexAPI < Endpoint
             end
             begin
               checksum = ENV.fetch("BUNDLER_SPEC_#{name.upcase}_CHECKSUM") do
-                Digest(:SHA256).file("#{gem_repo}/gems/#{spec.original_name}.gem").hexdigest
+                Digest(:SHA256).file("#{gem_repo}/gems/#{spec.full_name}.gem").hexdigest
               end
             rescue StandardError
               checksum = nil

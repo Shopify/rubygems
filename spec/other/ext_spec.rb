@@ -46,5 +46,10 @@ RSpec.describe "Gem::NameTuple" do
       expect(Gem::NameTuple.new("a", v("1.0.0"), "ruby").lock_name).to eq("a (1.0.0)")
       expect(Gem::NameTuple.new("a", v("1.0.0")).lock_name).to eq("a (1.0.0)")
     end
+
+    it "uses content_address in the lock name when set" do
+      expect(Gem::NameTuple.new("a", v("1.0.0"), "x86_64-linux", content_address: "abcdef12").lock_name).to eq("a (1.0.0-abcdef12)")
+      expect(Gem::NameTuple.new("a", v("1.0.0"), "ruby", content_address: "abcdef12").lock_name).to eq("a (1.0.0-abcdef12)")
+    end
   end
 end
