@@ -8,7 +8,7 @@ module Bundler
     include MatchPlatform
     include ForcePlatform
 
-    attr_reader :name, :version, :platform, :materialization
+    attr_reader :name, :version, :platform, :materialization, :content_address
     attr_accessor :source, :remote, :force_ruby_platform, :dependencies, :required_ruby_version, :required_rubygems_version
     attr_accessor :overrides
 
@@ -27,7 +27,7 @@ module Bundler
     alias_method :runtime_dependencies, :dependencies
 
     def self.from_spec(s)
-      lazy_spec = new(s.name, s.version, s.platform, s.source)
+      lazy_spec = new(s.name, s.version, s.platform, s.source, content_address: s.content_address)
       lazy_spec.dependencies = s.runtime_dependencies
       lazy_spec.required_ruby_version = s.required_ruby_version
       lazy_spec.required_rubygems_version = s.required_rubygems_version
@@ -35,13 +35,14 @@ module Bundler
       lazy_spec
     end
 
-    def initialize(name, version, platform, source = nil, **materialization_options)
+    def initialize(name, version, platform, source = nil, content_address: nil, **materialization_options)
       @name          = name
       @version       = version
       @dependencies  = []
       @required_ruby_version = Gem::Requirement.default
       @required_rubygems_version = Gem::Requirement.default
       @platform = platform || Gem::Platform::RUBY
+      @content_address = content_address
 
       @original_source = source
       @source = source
@@ -65,7 +66,9 @@ module Bundler
     end
 
     def full_name
-      @full_name ||= if platform == Gem::Platform::RUBY
+      @full_name ||= if @content_address
+        "#{@name}-#{@version}-#{@content_address}"
+      elsif platform == Gem::Platform::RUBY
         "#{@name}-#{@version}"
       else
         "#{@name}-#{@version}-#{platform}"
