@@ -149,12 +149,16 @@ module Gem::QueryUtils
     spec_tuples = if name.nil?
       fetcher.detect(specs_type) { true }
     else
-      fetcher.detect(specs_type) do |name_tuple|
+      matching_tuples = fetcher.detect(specs_type) do |name_tuple|
         name === name_tuple.name && options[:version].satisfied_by?(name_tuple.version)
       end
-    end
 
-    spec_tuples = decode_content_addressable_tuples(spec_tuples, latest: specs_type == :latest)
+      if args.empty?
+        matching_tuples
+      else
+        decode_content_addressable_tuples(matching_tuples, latest: specs_type == :latest)
+      end
+    end
 
     output_query_results(spec_tuples)
   end
