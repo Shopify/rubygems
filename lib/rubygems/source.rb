@@ -354,43 +354,63 @@ class Gem::Source
     []
   end
 
+  class ContentAddressableInfo
+    attr_reader :version, :suffix, :ruby_abi, :platform
+
+    def initialize(version, suffix, ruby_abi, platform = nil)
+      @version = version
+      @suffix = suffix
+      @ruby_abi = ruby_abi
+      @platform = platform
+    end
+
+    def hash
+      [@version, @suffix].hash
+    end
+
+    def eql?(other)
+      other.is_a?(ContentAddressableInfo) &&
+      version == other.version &&
+      suffix == other.suffix
+    end
+  end
+
   def content_addressable_tuples(name, rows)
     metadata = content_addressable_metadata(name, rows)
 
     rows.filter_map do |row_name, version, version_string, suffix|
-      row_metadata = metadata[[version_string, suffix]]
+      row_metadata = metadata.find do |entry|
+        entry.version == version_string && entry.suffix == suffix
+      end
       next unless row_metadata
 
       Gem::NameTuple.new(
         row_name,
         version,
-        row_metadata[:platform],
+        row_metadata.platform,
         content_address: suffix,
-        ruby_abi: row_metadata[:ruby_abi]
+        ruby_abi: row_metadata.ruby_abi
       )
     end
   end
 
   def content_addressable_metadata(name, rows)
-    wanted_rows = rows.to_h do |_, _, version, suffix|
-      [[version, suffix], true]
+    wanted_rows = rows.map do |row|
+      ContentAddressableInfo.new(row[2], row[3], nil, nil)
     end
 
-    compact_index_info_rows(name).each_with_object({}) do |info_row, metadata|
+    available_rows = compact_index_info_rows(name).filter_map do |info_row|
       version = info_row[Gem::CompactIndexClient::INFO_VERSION]
       suffix = info_row[Gem::CompactIndexClient::INFO_PLATFORM]
-      key = [version, suffix]
-      next unless wanted_rows[key]
 
       requirements = compact_index_requirements(info_row)
       platform = required_platform_from(requirements[:platform])
       next unless platform
 
-      metadata[key] = {
-        platform: platform,
-        ruby_abi: ruby_abi_from(requirements[:ruby]),
-      }
+      ContentAddressableInfo.new(version, suffix, ruby_abi_from(requirements[:ruby]), platform)
     end
+
+    available_rows & wanted_rows
   end
 
   def compact_index_requirements(info_row)
