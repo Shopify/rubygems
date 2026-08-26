@@ -424,6 +424,26 @@ class TestGemDependencyInstaller < Gem::TestCase
     assert_equal %w[a-1], inst.installed_gems.map(&:full_name)
   end
 
+  def test_install_local_by_name_preserves_content_address
+    ruby_abi = Gem.ruby_version.segments.first(2).join(".")
+    _spec, ca_gem = util_gem("ca", "1.0.0", ruby_abi: ruby_abi) do |spec|
+      spec.platform = Gem::Platform.local
+    end
+    FileUtils.mv ca_gem, @tempdir
+    moved_gem = File.join(@tempdir, File.basename(ca_gem))
+    address = Gem::Package.new(moved_gem).content_address
+    inst = nil
+    Dir.chdir @tempdir do
+      inst = Gem::DependencyInstaller.new(domain: :local)
+      source = Gem::Source::Local.new
+      local_spec = source.find_all_gems("ca", Gem::Requirement.default).first
+
+      assert_equal(address, local_spec.content_address)
+      inst.install("ca")
+    end
+    assert_equal(address, inst.installed_gems.first.content_address)
+  end
+
   def test_install_local_prerelease
     util_setup_gems
 

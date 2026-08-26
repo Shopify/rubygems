@@ -370,8 +370,8 @@ class Gem::Source
 
     def eql?(other)
       other.is_a?(ContentAddressableInfo) &&
-      version == other.version &&
-      suffix == other.suffix
+        version == other.version &&
+        suffix == other.suffix
     end
   end
 
