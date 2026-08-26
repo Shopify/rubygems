@@ -20,11 +20,27 @@ class Gem::NameTuple
   attr_reader :name, :version, :platform, :content_address, :ruby_abi
 
   ##
-  # Turn an array of [name, version, platform] into an array of
-  # NameTuple objects.
+  # Turn an array of tuples into an array of NameTuple objects. Accepts:
+  # * Gem::NameTuple objects (passed through as-is)
+  # * 3-element arrays: [name, version, platform]
+  # * 5-element arrays: [name, version, platform, content_address, ruby_abi]
 
   def self.from_list(list)
-    list.map {|t| new(*t) }
+    list.map do |tuple|
+      case tuple
+      when Gem::NameTuple
+        tuple
+      when Array
+        case tuple.length
+        when 3, 5
+          new(tuple[0], tuple[1], tuple[2], content_address: tuple[3], ruby_abi: tuple[4])
+        else
+          raise ArgumentError, "Expected a 3- or 5-element tuple, got #{tuple.length}"
+        end
+      else
+        raise ArgumentError, "Expected a Gem::NameTuple or Array, got #{tuple.class}"
+      end
+    end
   end
 
   ##
@@ -32,7 +48,7 @@ class Gem::NameTuple
   # [name, version, platform] tuples.
 
   def self.to_basic(list)
-    list.map(&:to_a)
+    list.map {|tuple| [tuple.name, tuple.version, tuple.platform] }
   end
 
   ##
@@ -78,10 +94,16 @@ class Gem::NameTuple
   end
 
   ##
-  # Convert back to the [name, version, platform] tuple
+  # Convert back to the tuple array. Returns [name, version, platform] for
+  # non-content-addressable gems, or [name, version, platform, content_address,
+  # ruby_abi] for content-addressable gems.
 
   def to_a
-    [@name, @version, @platform]
+    if @content_address
+      [@name, @version, @platform, @content_address, @ruby_abi]
+    else
+      [@name, @version, @platform]
+    end
   end
 
   alias_method :deconstruct, :to_a
@@ -114,7 +136,7 @@ class Gem::NameTuple
 
   ##
   # Compare with +other+. Supports another NameTuple or an Array
-  # in the [name, version, platform] format.
+  # in the [name, version, platform, content_address, ruby_abi] format.
 
   def ==(other)
     case other
