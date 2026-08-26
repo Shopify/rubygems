@@ -177,6 +177,39 @@ class TestGemCommandsUpdateCommand < Gem::TestCase
     assert_path_not_exist File.join(@gemhome, "specifications", "b-3.gemspec")
   end
 
+  def test_execute_cooldown_skips_content_addressable_tuple
+    util_set_arch "x86_64-linux"
+
+    spec_fetcher do |fetcher|
+      fetcher.gem "ca_cooldown", "1.0.0" do |s|
+        s.platform = "x86_64-linux"
+      end
+    end
+
+    ca_spec = util_ca_spec "ca_cooldown", "2.0.0", "abcdef12",
+      ruby_abi: Gem.ruby_version.segments.first(2).join("."),
+      platform: "x86_64-linux"
+    util_setup_compact_index ca_spec, created_at: {
+      ca_spec.original_name => util_cooldown_time(1),
+    }
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.options[:cooldown] = 7
+    @cmd.options[:args] = []
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    out = @ui.output.split "\n"
+    assert_equal "Updating installed gems", out.shift
+    assert_equal "Nothing to update", out.shift
+    assert_equal "The following gem versions were skipped by the cooldown setting:", out.shift
+    assert_match(/\A  \* ca_cooldown 2\.0\.0 \(available in \d+ days\), resolved 1\.0\.0 instead\z/, out.shift)
+    assert_empty out
+    assert_path_not_exist File.join(@gemhome, "specifications", "ca_cooldown-2.0.0-abcdef12.gemspec")
+  end
+
   def test_execute_cooldown_all_new_versions_within_period
     util_setup_cooldown_repo b2_created_at: util_cooldown_time(1),
                              b3_created_at: util_cooldown_time(1)
