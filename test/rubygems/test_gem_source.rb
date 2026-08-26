@@ -326,6 +326,15 @@ class TestGemSource < Gem::TestCase
     assert_nil @source.created_at("c", v(1))
   end
 
+  def test_created_at_for_tuple_uses_content_address
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux,created_at:2026-06-05T10:30:45Z\n")
+
+    tuple = Gem::NameTuple.new "a", v(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
+
+    assert_nil @source.created_at("a", v(1), "x86_64-linux")
+    assert_equal Time.utc(2026, 6, 5, 10, 30, 45), @source.created_at_for_tuple(tuple)
+  end
+
   def test_created_at_file_uri
     source = Gem::Source.new "file:///tmp/gems"
 

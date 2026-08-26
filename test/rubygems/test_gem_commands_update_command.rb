@@ -116,6 +116,50 @@ class TestGemCommandsUpdateCommand < Gem::TestCase
     assert_path_not_exist File.join(@gemhome, "specifications", "b-3.gemspec")
   end
 
+  def test_execute_cooldown_skips_content_addressable_tuple
+    installed = Gem::Specification.new do |s|
+      s.name = "ca_cooldown"
+      s.version = "1.0.0"
+      s.platform = "x86_64-linux"
+    end
+
+    source = Gem::Source.new(@gem_repo)
+    created_at_calls = []
+    source.define_singleton_method(:created_at) do |name, version, platform = Gem::Platform::RUBY|
+      created_at_calls << [name, version.to_s, platform.to_s]
+      Time.now.utc - 86_400 if platform.to_s == "abcdef12"
+    end
+
+    tuple = Gem::NameTuple.new(
+      "ca_cooldown",
+      v("2.0.0"),
+      "x86_64-linux",
+      content_address: "abcdef12",
+      ruby_abi: "3.4"
+    )
+
+    @cmd.define_singleton_method(:highest_installed_gems) { { "ca_cooldown" => installed } }
+    @cmd.define_singleton_method(:fetch_remote_gems) { |_spec| [[tuple, source]] }
+    @cmd.define_singleton_method(:resolved_fallback_version) { |_name| installed.version }
+    @cmd.define_singleton_method(:update_gem) { |_name, _version| raise "cooldown should skip the CA gem" }
+
+    @cmd.options[:cooldown] = 7
+    @cmd.options[:args] = []
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    out = @ui.output.split "\n"
+    assert_equal "Updating installed gems", out.shift
+    assert_equal "Nothing to update", out.shift
+    assert_equal "The following gem versions were skipped by the cooldown setting:", out.shift
+    assert_match(/\A  \* ca_cooldown 2\.0\.0 \(available in \d+ days\), resolved 1\.0\.0 instead\z/, out.shift)
+    assert_empty out
+
+    assert_includes created_at_calls, ["ca_cooldown", "2.0.0", "abcdef12"]
+  end
+
   def test_execute_cooldown_all_new_versions_within_period
     util_setup_cooldown_repo b2_created_at: util_cooldown_time(1),
                              b3_created_at: util_cooldown_time(1)

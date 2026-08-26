@@ -247,6 +247,14 @@ class Gem::Source
   end
 
   ##
+  # The publish time for +tuple+. Content-addressable tuples are looked up by
+  # content address; all other tuples are looked up by platform.
+
+  def created_at_for_tuple(tuple)
+    created_at(tuple.name, tuple.version, tuple.content_address || tuple.platform)
+  end
+
+  ##
   # Downloads +spec+ and writes it to +dir+.  See also
   # Gem::RemoteFetcher#download.
 
