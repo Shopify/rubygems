@@ -68,6 +68,19 @@ class TestGemCommandsFetchCommand < Gem::TestCase
                        "#{a2.full_name} not fetched")
   end
 
+  def test_execute_content_addressable_gem
+    util_set_arch "x86_64-linux"
+    spec = util_setup_content_addressable_remote_gem "ca", "1"
+
+    @cmd.options[:args] = %w[ca]
+
+    execute_with_exit_code
+
+    fetched = File.join(@tempdir, spec.file_name)
+    assert_path_exist fetched
+    assert_equal "contents of #{spec.file_name}", Gem.read_binary(fetched)
+  end
+
   def test_execute_platform
     a2_spec, a2 = util_gem("a", "2")
 

@@ -61,9 +61,11 @@ use with other commands.
     ss = if name.nil?
       fetcher.detect(specs_type) { true }
     else
-      fetcher.detect(specs_type) do |name_tuple|
+      matching_tuples = fetcher.detect(specs_type) do |name_tuple|
         name === name_tuple.name && requirement.satisfied_by?(name_tuple.version)
       end
+
+      fetcher.decode_content_addressable_tuples(matching_tuples)
     end
 
     ss.map {|tuple, source| source.fetch_spec(tuple) }
