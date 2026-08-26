@@ -131,7 +131,7 @@ class Gem::Source
              rescue StandardError
                nil
              end
-      return spec if spec
+      return add_name_tuple_metadata(spec, name_tuple) if spec
     end
 
     source_uri.path << ".rz"
@@ -150,7 +150,12 @@ class Gem::Source
 
     Gem.load_safe_marshal
     # TODO: Investigate setting Gem::Specification#loaded_from to a URI
-    Gem::SafeMarshal.safe_load spec
+    add_name_tuple_metadata(Gem::SafeMarshal.safe_load(spec), name_tuple)
+  end
+
+  def add_name_tuple_metadata(spec, name_tuple)
+    spec.content_address = name_tuple.content_address if name_tuple.content_address
+    spec
   end
 
   ##

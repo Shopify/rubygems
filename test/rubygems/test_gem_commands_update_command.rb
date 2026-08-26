@@ -850,6 +850,22 @@ class TestGemCommandsUpdateCommand < Gem::TestCase
     end
   end
 
+  def test_fetch_remote_gems_content_addressable_gem
+    util_set_arch "x86_64-linux"
+    spec = util_setup_content_addressable_remote_gem "ca", "2"
+    installed = util_spec "ca", "1" do |s|
+      s.platform = "x86_64-linux"
+    end
+
+    expected = [[
+      Gem::NameTuple.new("ca", v(2), "x86_64-linux", content_address: "abcdef12", ruby_abi: util_current_ruby_abi),
+      Gem::Source.new(@gem_repo),
+    ]]
+
+    assert_equal expected, @cmd.fetch_remote_gems(installed)
+    assert_equal "ca-2-abcdef12", spec.full_name
+  end
+
   def test_fetch_remote_gems_mismatch
     platform = Gem::Platform.new "x86-freebsd9"
 

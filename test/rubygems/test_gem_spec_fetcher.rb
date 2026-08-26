@@ -13,6 +13,7 @@ class TestGemSpecFetcher < Gem::TestCase
 
     @uri = Gem::URI.parse @gem_repo
     @source = Gem::Source.new(@uri)
+    @fetcher = Gem::RemoteFetcher.fetcher
 
     @sf = Gem::SpecFetcher.new
   end
@@ -136,6 +137,45 @@ class TestGemSpecFetcher < Gem::TestCase
 
     assert_equal "i386-linux", pmm.platforms.first
     assert_equal "Found pl (1), but was for platform i386-linux", pmm.wordy
+  end
+
+  def test_search_for_dependency_decodes_content_addressable_tuples_before_platform_matching
+    util_set_arch "x86_64-linux"
+    ruby_abi = util_current_ruby_abi
+    util_setup_content_addressable_compact_index ["ca", "1", "abcdef12", "x86_64-linux", ruby_abi]
+
+    tuples, errors = @sf.search_for_dependency dep("ca", "= 1")
+
+    assert_empty errors
+    expected = [[
+      Gem::NameTuple.new("ca", v("1"), "x86_64-linux", content_address: "abcdef12", ruby_abi: ruby_abi),
+      @source,
+    ]]
+
+    assert_equal expected, tuples
+  end
+
+  def test_search_for_dependency_filters_content_addressable_tuples_by_ruby_abi
+    util_set_arch "x86_64-linux"
+    other_ruby_abi = util_current_ruby_abi == "9.9" ? "8.8" : "9.9"
+    util_setup_content_addressable_compact_index ["ca", "1", "abcdef12", "x86_64-linux", other_ruby_abi]
+
+    tuples, errors = @sf.search_for_dependency dep("ca", "= 1")
+
+    assert_empty errors
+    assert_empty tuples
+  end
+
+  def test_search_for_dependency_only_decodes_content_addressable_tuples_matching_dependency
+    util_set_arch "x86_64-linux"
+    ruby_abi = util_current_ruby_abi
+    util_setup_content_addressable_compact_index \
+      ["ca", "1", "abcdef12", "x86_64-linux", ruby_abi],
+      ["other", "1", "fedcba98", "x86_64-linux", ruby_abi]
+
+    @sf.search_for_dependency dep("ca", "= 1")
+
+    refute @fetcher.requests.any? {|req| req.path.end_with?("/info/other") }
   end
 
   def test_spec_for_dependency_bad_fetch_spec

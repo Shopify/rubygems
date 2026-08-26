@@ -188,6 +188,23 @@ ERROR:  Only reverse dependencies for local gems are supported.
     assert_equal "", @stub_ui.error
   end
 
+  def test_execute_remote_content_addressable_gem
+    util_set_arch "x86_64-linux"
+    util_setup_content_addressable_remote_gem "foo", "2" do |spec|
+      spec.add_dependency "bar", "> 1"
+    end
+
+    @cmd.options[:args] = %w[foo]
+    @cmd.options[:domain] = :remote
+
+    use_ui @stub_ui do
+      @cmd.execute
+    end
+
+    assert_equal "Gem foo-2-abcdef12\n  bar (> 1)\n\n", @stub_ui.output
+    assert_equal "", @stub_ui.error
+  end
+
   def test_execute_remote_version
     @fetcher = Gem::FakeFetcher.new
     Gem::RemoteFetcher.fetcher = @fetcher

@@ -1195,6 +1195,54 @@ Also, a list:
   # original names to ISO8601 timestamps emitted as compact index v2
   # metadata.
 
+  def util_current_ruby_abi
+    Gem.ruby_version.segments.first(2).join(".")
+  end
+
+  def util_setup_content_addressable_compact_index(*rows)
+    @fetcher ||= Gem::RemoteFetcher.fetcher
+
+    by_name = rows.group_by(&:first)
+    names_body = +"---\n"
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\n"
+
+    by_name.each do |name, name_rows|
+      info_body = +"---\n"
+      versions = name_rows.map do |_, version, content_address, platform, ruby_abi|
+        info_body << "#{version}-#{content_address} " \
+                     "|checksum:123,ruby:~> #{ruby_abi}.0,platform:= #{platform}\n"
+        "#{version}-#{content_address}"
+      end
+
+      versions_body << "#{name} #{versions.join(",")} #{Digest::MD5.hexdigest(info_body)}\n"
+      names_body << "#{name}\n"
+      @fetcher.data["#{@gem_repo}info/#{name}"] = util_compact_index_response(info_body)
+    end
+
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}names"] = util_compact_index_response(names_body)
+    Gem::SpecFetcher.fetcher = nil
+  end
+
+  def util_setup_content_addressable_remote_gem(name, version, content_address: "abcdef12", platform: "x86_64-linux", ruby_abi: util_current_ruby_abi)
+    spec = util_spec name, version do |s|
+      s.platform = platform
+      s.required_ruby_version = "~> #{ruby_abi}.0"
+      s.content_address = content_address
+      yield s if block_given?
+    end
+
+    util_setup_content_addressable_compact_index [name, version.to_s, content_address, platform, ruby_abi]
+
+    v = Gem.marshal_version
+    @fetcher.data["#{@gem_repo}quick/Marshal.#{v}/#{spec.full_name}.gemspec.rz"] = util_zip(Marshal.dump(spec))
+    @fetcher.data["#{@gem_repo}gems/#{spec.file_name}"] = "contents of #{spec.file_name}"
+
+    spec
+  end
+
   def util_setup_compact_index(*specs, created_at: {})
     by_name = Hash.new {|hash, name| hash[name] = [] }
     specs.each {|spec| by_name[spec.name] << spec }

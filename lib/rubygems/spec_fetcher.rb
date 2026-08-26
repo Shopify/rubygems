@@ -91,7 +91,8 @@ class Gem::SpecFetcher
 
     rejected_specs = {}
 
-    list, errors = available_specs(type || dependency.identity)
+    specs_type = type || dependency.identity
+    list, errors = available_specs(specs_type)
 
     list.each do |source, specs|
       if dependency.name.is_a?(String) && specs.respond_to?(:bsearch)
@@ -100,17 +101,20 @@ class Gem::SpecFetcher
         specs = specs[start_index...end_index] if start_index && end_index
       end
 
+      specs = specs.select {|tup| dependency.match?(tup) }
+      specs = decode_source_content_addressable_tuples(source, specs, latest: specs_type == :latest)
+
       found[source] = specs.select do |tup|
-        if dependency.match?(tup)
-          if matching_platform && !Gem::Platform.match_gem?(tup.platform, tup.name)
-            pm = (
-              rejected_specs[dependency] ||= \
-                Gem::PlatformMismatch.new(tup.name, tup.version))
-            pm.add_platform tup.platform
-            false
-          else
-            true
-          end
+        if matching_platform && !Gem::Platform.match_gem?(tup.platform, tup.name)
+          pm = (
+            rejected_specs[dependency] ||= \
+              Gem::PlatformMismatch.new(tup.name, tup.version))
+          pm.add_platform tup.platform
+          false
+        elsif matching_platform && !ruby_abi_match?(tup)
+          false
+        else
+          true
         end
       end
     end
@@ -171,6 +175,13 @@ class Gem::SpecFetcher
   ##
   # Suggests gems based on the supplied +gem_name+. Returns an array of
   # alternative gem names.
+
+  def decode_content_addressable_tuples(spec_tuples, latest: false) # :nodoc:
+    spec_tuples.group_by {|_, source| source }.flat_map do |source, source_tuples|
+      tuples = source_tuples.map(&:first)
+      decode_source_content_addressable_tuples(source, tuples, latest: latest).map {|tuple| [tuple, source] }
+    end
+  end
 
   def suggest_gems_from_name(gem_name, type = :latest, num_results = 5)
     gem_name = gem_name.downcase.tr("_-", "")
@@ -289,5 +300,19 @@ class Gem::SpecFetcher
   rescue Gem::RemoteFetcher::FetchError
     raise unless gracefully_ignore
     []
+  end
+
+  def decode_source_content_addressable_tuples(source, tuples, latest: false)
+    return tuples unless source.respond_to?(:decode_content_addressable_tuples)
+
+    source.decode_content_addressable_tuples(tuples, latest: latest)
+  end
+
+  def ruby_abi_match?(tuple)
+    !tuple.ruby_abi || tuple.ruby_abi == current_ruby_abi
+  end
+
+  def current_ruby_abi
+    @current_ruby_abi ||= Gem.ruby_version.segments.first(2).join(".")
   end
 end
