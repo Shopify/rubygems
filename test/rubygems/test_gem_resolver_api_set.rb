@@ -58,7 +58,8 @@ class TestGemResolverAPISet < Gem::TestCase
   def test_find_all_content_addressed
     spec_fetcher
 
-    @fetcher.data["#{@dep_uri}a"] = util_compact_index_response("---\n1-ab12345678 |platform:= #{Gem::Platform.local}\n")
+    a_spec = util_ca_spec("a", "1", "ab12345678", ruby_abi: "3.3", platform: Gem::Platform.local.to_s)
+    util_setup_compact_index(a_spec)
 
     set = Gem::Resolver::APISet.new @dep_uri
     a_dep = Gem::Resolver::DependencyRequest.new dep("a"), nil

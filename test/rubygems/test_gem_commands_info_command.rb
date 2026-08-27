@@ -45,28 +45,18 @@ class TestGemCommandsInfoCommand < Gem::TestCase
   def test_execute_remote_unscoped_content_addressable_gems_do_not_fetch_metadata
     spec_fetcher {}
 
-    spec_a = util_spec "a", "1" do |s|
-      s.platform = "x86_64-linux"
+    spec_a = util_ca_spec("a", "1", "abcdef12", ruby_abi: "3.3", platform: "x86_64-linux") do |s|
       s.summary = "summary a"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-    spec_a.content_address = "abcdef12"
-
-    spec_b = util_spec "b", "1" do |s|
-      s.platform = "arm64-darwin"
+    spec_b = util_ca_spec("b", "1", "fedcba98", ruby_abi: "3.4", platform: "arm64-darwin") do |s|
       s.summary = "summary b"
       s.homepage = "http://example.com"
       s.authors = ["B User"]
     end
-    spec_b.content_address = "fedcba98"
+    util_setup_compact_index(spec_a, spec_b)
 
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\nb 1-fedcba98 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
-    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux\n")
-    @fetcher.data["#{@gem_repo}info/b"] = util_compact_index_response("---\n1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= arm64-darwin\n")
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-abcdef12.gemspec.rz"
     @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_a))
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/b-1-fedcba98.gemspec.rz"
@@ -88,19 +78,12 @@ class TestGemCommandsInfoCommand < Gem::TestCase
   def test_execute_remote_content_addressable_gem_displays_real_platform_and_ruby_abi
     spec_fetcher {}
 
-    spec = util_spec "a", "1" do |s|
-      s.platform = "x86_64-linux"
+    spec = util_ca_spec("a", "1", "abcdef12", ruby_abi: "3.3", platform: "x86_64-linux") do |s|
       s.summary = "this is a summary"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-    spec.content_address = "abcdef12"
-
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
-    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux\n")
+    util_setup_compact_index(spec)
 
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-abcdef12.gemspec.rz"
     @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
@@ -120,28 +103,22 @@ class TestGemCommandsInfoCommand < Gem::TestCase
   def test_execute_remote_content_addressable_gem_displays_ruby_abis_next_to_their_platforms
     spec_fetcher {}
 
-    spec = util_spec "a", "1" do |s|
-      s.platform = "x86_64-linux"
+    spec = util_ca_spec("a", "1", "abcdef12", ruby_abi: "3.3", platform: "x86_64-linux") do |s|
       s.summary = "this is a summary"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-    spec.content_address = "abcdef12"
-
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,1-fedcba98 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
-    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
-      ---
-      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
-      1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= x86_64-linux-musl
-    INFO
+    spec_musl = util_ca_spec("a", "1", "fedcba98", ruby_abi: "3.4", platform: "x86_64-linux-musl") do |s|
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    util_setup_compact_index(spec, spec_musl)
 
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-abcdef12.gemspec.rz"
     @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-fedcba98.gemspec.rz"
-    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_musl))
     Gem::SpecFetcher.fetcher = nil
 
     @cmd.handle_options %w[a --remote]
@@ -161,26 +138,26 @@ class TestGemCommandsInfoCommand < Gem::TestCase
   def test_execute_remote_content_addressable_and_platform_gems_display_together
     spec_fetcher {}
 
-    spec = util_spec "a", "3" do |s|
-      s.platform = "arm64-darwin"
+    spec_v1 = util_spec "a", "1" do |s|
+      s.platform = "x86_64-linux"
       s.summary = "this is a summary"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-    spec.content_address = "fedcba98"
-
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-x86_64-linux,2-abcdef12,3-fedcba98 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
-    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
-      ---
-      2-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
-      3-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= arm64-darwin
-    INFO
+    spec_v2 = util_ca_spec("a", "2", "abcdef12", ruby_abi: "3.3", platform: "x86_64-linux") do |s|
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    spec_v3 = util_ca_spec("a", "3", "fedcba98", ruby_abi: "3.4", platform: "arm64-darwin") do |s|
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    util_setup_compact_index(spec_v1, spec_v2, spec_v3)
 
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-3-fedcba98.gemspec.rz"
-    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_v3))
     Gem::SpecFetcher.fetcher = nil
 
     @cmd.handle_options %w[a --remote --all]
@@ -201,28 +178,22 @@ class TestGemCommandsInfoCommand < Gem::TestCase
   def test_execute_remote_content_addressable_gem_displays_multiple_ruby_abis_on_same_platform
     spec_fetcher {}
 
-    spec = util_spec "a", "1" do |s|
-      s.platform = "x86_64-linux"
+    spec = util_ca_spec("a", "1", "abcdef12", ruby_abi: "3.3", platform: "x86_64-linux") do |s|
       s.summary = "this is a summary"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-    spec.content_address = "abcdef12"
-
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,1-fedcba98 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
-    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
-      ---
-      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
-      1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= x86_64-linux
-    INFO
+    spec_other = util_ca_spec("a", "1", "fedcba98", ruby_abi: "3.4", platform: "x86_64-linux") do |s|
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    util_setup_compact_index(spec, spec_other)
 
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-abcdef12.gemspec.rz"
     @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-1-fedcba98.gemspec.rz"
-    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_other))
     Gem::SpecFetcher.fetcher = nil
 
     @cmd.handle_options %w[a --remote]
@@ -240,34 +211,33 @@ class TestGemCommandsInfoCommand < Gem::TestCase
   def test_execute_remote_content_addressable_platform_and_source_gems_display_together
     spec_fetcher {}
 
-    spec = util_spec "a", "3" do |s|
-      s.platform = "arm64-darwin"
+    spec_v1 = util_spec "a", "1" do |s|
+      s.platform = "x86_64-linux"
       s.summary = "this is a summary"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-    spec.content_address = "fedcba98"
-
-    spec_source = util_spec "a", "4" do |s|
+    spec_v2 = util_ca_spec("a", "2", "abcdef12", ruby_abi: "3.3", platform: "x86_64-linux") do |s|
       s.summary = "this is a summary"
       s.homepage = "http://example.com"
       s.authors = ["A User"]
     end
-
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-x86_64-linux,2-abcdef12,3-fedcba98,4 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
-    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
-      ---
-      2-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
-      3-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= arm64-darwin
-    INFO
+    spec_v3 = util_ca_spec("a", "3", "fedcba98", ruby_abi: "3.4", platform: "arm64-darwin") do |s|
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    spec_v4 = util_spec "a", "4" do |s|
+      s.summary = "this is a summary"
+      s.homepage = "http://example.com"
+      s.authors = ["A User"]
+    end
+    util_setup_compact_index(spec_v1, spec_v2, spec_v3, spec_v4)
 
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-3-fedcba98.gemspec.rz"
-    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec))
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_v3))
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/a-4.gemspec.rz"
-    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_source))
+    @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_v4))
     Gem::SpecFetcher.fetcher = nil
 
     @cmd.handle_options %w[a --remote --all]
@@ -303,10 +273,7 @@ class TestGemCommandsInfoCommand < Gem::TestCase
       s.authors = ["E User"]
     end
 
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\ne 1-x86_64-linux,1-arm64-darwin 0000\n"
-    versions_response = util_compact_index_response(versions_body)
-    versions_response.uri = Gem::URI("#{@gem_repo}versions")
-    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    util_setup_compact_index(spec_e1, spec_e2)
 
     path = "#{@gem_repo}quick/Marshal.#{Gem.marshal_version}/e-1-x86_64-linux.gemspec.rz"
     @fetcher.data[path] = Zlib::Deflate.deflate(Marshal.dump(spec_e1))
