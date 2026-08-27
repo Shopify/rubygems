@@ -336,19 +336,19 @@ class TestGemResolver < Gem::TestCase
     assert_resolves_to [ca_spec], resolver
   end
 
-  def test_falls_back_to_fat_when_content_addressed_gem_requires_other_rubygems_version
+  def test_falls_back_to_non_content_addressable_when_content_addressed_gem_requires_other_rubygems_version
     ca_spec = util_spec "a", "1"
-    fat_spec = util_spec "a", "1"
+    non_content_addressable_spec = util_spec "a", "1"
 
     ca_spec.platform = Gem::Platform.local
     ca_spec.content_address = "abc1234567"
     ca_spec.required_rubygems_version = ">= 999"
-    fat_spec.platform = Gem::Platform.local
+    non_content_addressable_spec.platform = Gem::Platform.local
 
-    s = set(fat_spec, ca_spec)
+    s = set(non_content_addressable_spec, ca_spec)
     dependency = make_dep "a"
     resolver = Gem::Resolver.new([dependency], s)
-    assert_resolves_to [fat_spec], resolver
+    assert_resolves_to [non_content_addressable_spec], resolver
   end
 
   def test_falls_back_to_source_when_content_addressed_gem_requires_other_ruby
@@ -366,21 +366,56 @@ class TestGemResolver < Gem::TestCase
     assert_resolves_to [source_spec], resolver
   end
 
-  def test_falls_back_to_fat_before_source_when_content_addressed_gem_requires_other_ruby
+  def test_falls_back_to_non_content_addressable_before_source_when_content_addressed_gem_requires_other_ruby
     ca_spec = util_spec "a", "1"
-    fat_spec = util_spec "a", "1"
+    non_content_addressable_spec = util_spec "a", "1"
     source_spec = util_spec "a", "1"
 
     ca_spec.platform = Gem::Platform.local
     ca_spec.content_address = "abc1234567"
     ca_spec.required_ruby_version = ">= 999"
-    fat_spec.platform = Gem::Platform.local
+    non_content_addressable_spec.platform = Gem::Platform.local
     source_spec.platform = Gem::Platform::RUBY
 
-    s = set(source_spec, fat_spec, ca_spec)
+    s = set(source_spec, non_content_addressable_spec, ca_spec)
     dependency = make_dep "a"
     resolver = Gem::Resolver.new([dependency], s)
-    assert_resolves_to [fat_spec], resolver
+    assert_resolves_to [non_content_addressable_spec], resolver
+  end
+
+  def test_prefers_compatible_content_addressed_gem_when_multiple_abis_available
+    current_abi = "#{Gem.ruby_version.segments[0]}.#{Gem.ruby_version.segments[1]}"
+
+    ca_compatible = util_spec "a", "1"
+    ca_incompatible = util_spec "a", "1"
+
+    ca_compatible.platform = Gem::Platform.local
+    ca_compatible.content_address = "abc1234567"
+    ca_compatible.required_ruby_version = "~> #{current_abi}.0"
+    ca_incompatible.platform = Gem::Platform.local
+    ca_incompatible.content_address = "def1234567"
+    ca_incompatible.required_ruby_version = "~> 999.0.0"
+
+    s = set(ca_incompatible, ca_compatible)
+    dependency = make_dep "a"
+    resolver = Gem::Resolver.new([dependency], s)
+    assert_resolves_to [ca_compatible], resolver
+  end
+
+  def test_raises_when_only_content_addressed_gem_is_incompatible
+    ca_spec = util_spec "a", "1"
+
+    ca_spec.platform = Gem::Platform.local
+    ca_spec.content_address = "abc1234567"
+    ca_spec.required_ruby_version = "~> 999.0.0"
+
+    s = set(ca_spec)
+    dependency = make_dep "a"
+    resolver = Gem::Resolver.new([dependency], s)
+
+    assert_raise Gem::DependencyResolutionError do
+      resolver.resolve
+    end
   end
 
   def test_does_not_pick_musl_variants_on_non_musl_linux
