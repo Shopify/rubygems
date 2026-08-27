@@ -112,4 +112,142 @@ class TestGemCommandsSearchCommand < Gem::TestCase
     refute_match "abcdef12", @ui.output
     refute_match "fedcba98", @ui.output
   end
+
+  def test_execute_content_addressable_gems_displays_ruby_abis_next_to_their_platforms
+    spec_fetcher {}
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,1-fedcba98 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= arm64-darwin
+    INFO
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    expected = <<~OUTPUT.chomp
+      a (1 Platform: arm64-darwin, Ruby ABI: 3.4
+         1 Platform: x86_64-linux, Ruby ABI: 3.3)
+    OUTPUT
+
+    assert_include @ui.output, expected
+    refute_match "abcdef12", @ui.output
+    refute_match "fedcba98", @ui.output
+  end
+
+  def test_execute_content_addressable_gems_displays_multiple_ruby_abis_on_the_same_line
+    spec_fetcher {}
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,1-fedcba98 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= x86_64-linux
+    INFO
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_include @ui.output, "a (1 Platform: x86_64-linux, Ruby ABI: 3.3, 3.4)"
+    refute_match "abcdef12", @ui.output
+    refute_match "fedcba98", @ui.output
+  end
+
+  def test_execute_content_addressable_gems_displays_multiple_versions_on_separate_lines
+    spec_fetcher {}
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,2-fedcba98,3-12345678 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      2-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= x86_64-linux
+      3-12345678 |checksum:789,ruby:~> 3.4.0,platform:= arm64-darwin
+    INFO
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    expected = <<~OUTPUT.chomp
+      a (3 Platform: arm64-darwin, Ruby ABI: 3.4
+         2 Platform: x86_64-linux, Ruby ABI: 3.4
+         1 Platform: x86_64-linux, Ruby ABI: 3.3)
+    OUTPUT
+
+    assert_include @ui.output, expected
+    refute_match "abcdef12", @ui.output
+    refute_match "fedcba98", @ui.output
+    refute_match "12345678", @ui.output
+  end
+
+  def test_execute_platform_gem_displays_version_once_for_multiple_platforms
+    spec_fetcher {}
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\ne 1-x86_64-linux,1-arm64-darwin 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[e]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_include @ui.output, "e (1 arm64-darwin x86_64-linux)"
+  end
+
+  def test_execute_content_addressable_platform_and_source_gems_display_together
+    spec_fetcher {}
+
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-x86_64-linux,2-abcdef12,3-fedcba98,4 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      2-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      3-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= arm64-darwin
+    INFO
+    Gem::SpecFetcher.fetcher = nil
+
+    @cmd.handle_options %w[a --all]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    expected = <<~OUTPUT.chomp
+      a (4
+         3 Platform: arm64-darwin, Ruby ABI: 3.4
+         2 Platform: x86_64-linux, Ruby ABI: 3.3
+         1 Platform: x86_64-linux)
+    OUTPUT
+
+    assert_include @ui.output, expected
+    refute_match "abcdef12", @ui.output
+    refute_match "fedcba98", @ui.output
+  end
 end
