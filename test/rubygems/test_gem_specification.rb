@@ -1943,6 +1943,11 @@ dependencies: []
     assert_nil spec.ruby_abi
   end
 
+  def test_ruby_abi_returns_nil_for_default_required_ruby_version
+    spec = Gem::Specification.new
+    assert_nil spec.ruby_abi
+  end
+
   def test_full_name
     assert_equal "a-1", @a1.full_name
 
