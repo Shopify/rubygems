@@ -54,7 +54,7 @@ class TestGemNameTuple < Gem::TestCase
     assert_equal "a-1-abcdef12", n.full_name
   end
 
-  def test_fat_tuple_does_not_store_nil_content_addressable_metadata_ivars
+  def test_non_content_addressable_tuple_does_not_store_nil_content_addressable_metadata_ivars
     n = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux"
 
     refute_includes n.instance_variables, :@content_address
@@ -63,11 +63,25 @@ class TestGemNameTuple < Gem::TestCase
     assert_nil n.ruby_abi
   end
 
-  def test_sort_mixed_fat_and_content_addressable_tuples
-    fat = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux"
-    skinny = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
+  def test_sort_mixed_non_content_addressable_and_content_addressable_tuples
+    non_content_addressable = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux"
+    content_addressable = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
 
-    assert_equal [fat, skinny], [skinny, fat].sort
+    assert_equal [non_content_addressable, content_addressable], [content_addressable, non_content_addressable].sort
+  end
+
+  def test_content_addressable_spec_name
+    n = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
+
+    assert_equal "a-1-abcdef12.gemspec", n.spec_name
+  end
+
+  def test_content_addressable_tuples_with_different_addresses_are_distinct
+    first = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
+    second = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "12345678", ruby_abi: "3.4"
+
+    refute_equal first, second
+    refute_equal first.hash, second.hash
   end
 
   def test_spec_name
