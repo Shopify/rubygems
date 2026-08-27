@@ -23,10 +23,6 @@ unless Gem::NameTuple.method_defined?(:content_address)
   Gem::NameTuple.attr_reader :content_address
 end
 
-unless Gem::Installer.private_method_defined?(:assign_content_address)
-  Gem::Installer.send(:define_method, :assign_content_address) {}
-end
-
 module Gem
   # Can be removed once RubyGems 4.0.0 support is dropped
   unless defined?(Gem::ContentAddress)

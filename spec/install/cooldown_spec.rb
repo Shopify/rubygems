@@ -500,11 +500,11 @@ RSpec.describe "bundle install with the cooldown setting" do
            #{Bundler::VERSION}
       L
 
-      bundle "outdated --cooldown 7 --parseable", artifice: "compact_index_cooldown", raise_on_error: false
+      bundle "outdated --cooldown 7 --parseable", artifice: "compact_index_v2", raise_on_error: false
 
       expect(out).to match(/mid_gem \(newest 2\.0\.0, installed 1\.0\.0.*in cooldown for \d+ more days, newest out of cooldown 1\.5\.0\)/)
 
-      bundle "outdated --cooldown 7", artifice: "compact_index_cooldown", raise_on_error: false
+      bundle "outdated --cooldown 7", artifice: "compact_index_v2", raise_on_error: false
 
       expect(out).to match(/mid_gem.*2\.0\.0 \(cooldown \d+d, 1\.5\.0 out of cooldown\)/)
     end
@@ -531,7 +531,7 @@ RSpec.describe "bundle install with the cooldown setting" do
            #{Bundler::VERSION}
       L
 
-      bundle "outdated --strict --cooldown 7 --parseable", artifice: "compact_index_cooldown", raise_on_error: false
+      bundle "outdated --strict --cooldown 7 --parseable", artifice: "compact_index_v2", raise_on_error: false
 
       # in strict mode "newest" is the resolved (cooldown-filtered) version
       # itself, so the annotations have nothing to add
@@ -561,7 +561,7 @@ RSpec.describe "bundle install with the cooldown setting" do
            #{Bundler::VERSION}
       L
 
-      bundle "outdated --cooldown 7 --parseable", artifice: "compact_index_cooldown", raise_on_error: false
+      bundle "outdated --cooldown 7 --parseable", artifice: "compact_index_v2", raise_on_error: false
 
       expect(out).to match(/fresh_gem.*in cooldown for \d+ more day/)
       expect(out).not_to include("out of cooldown")
@@ -590,7 +590,7 @@ RSpec.describe "bundle install with the cooldown setting" do
       L
 
       # mid_gem 2.0.0 is one day old, so a two-day window leaves one day
-      bundle "outdated --cooldown 2 --parseable", artifice: "compact_index_cooldown", raise_on_error: false
+      bundle "outdated --cooldown 2 --parseable", artifice: "compact_index_v2", raise_on_error: false
 
       expect(out).to match(/mid_gem \(newest 2\.0\.0, installed 1\.0\.0.*in cooldown for 1 more day, newest out of cooldown 1\.5\.0\)/)
     end
@@ -617,7 +617,7 @@ RSpec.describe "bundle install with the cooldown setting" do
            #{Bundler::VERSION}
       L
 
-      bundle "outdated --parseable", artifice: "compact_index_cooldown", raise_on_error: false
+      bundle "outdated --parseable", artifice: "compact_index_v2", raise_on_error: false
 
       expect(out).to match(/mid_gem \(newest 2\.0\.0, installed 1\.0\.0/)
       expect(out).not_to include("cooldown")
