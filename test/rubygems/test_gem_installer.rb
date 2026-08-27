@@ -1050,6 +1050,7 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_equal address, spec.content_address
     assert_equal "a-2-#{address}", spec.full_name
     assert_path_exist File.join(@gemhome, "gems", "a-2-#{address}")
+    assert_path_exist File.join(@gemhome, "cache", "a-2-#{address}.gem")
     assert_path_exist File.join(@gemhome, "specifications", "a-2-#{address}.gemspec")
   end
 
