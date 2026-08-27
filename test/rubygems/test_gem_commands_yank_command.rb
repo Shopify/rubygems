@@ -122,6 +122,33 @@ class TestGemCommandsYankCommand < Gem::TestCase
     assert_equal [yank_uri], @fetcher.paths
   end
 
+  def test_execute_with_ruby_abi_and_platform_no_matching_gem_displays_error
+    original_platforms = Gem.platforms.dup
+    yank_uri = "http://example/api/v1/gems/yank"
+    @fetcher.data[yank_uri] = HTTPResponseFactory.create(
+      body: "The version 1.0 (x86_64-linux) (Ruby ABI 3.9) does not exist.",
+      code: 404,
+      msg: "Not Found"
+    )
+
+    @cmd.options[:args] = %w[a]
+    @cmd.options[:version] = req("= 1.0")
+    @cmd.options[:ruby_abi] = "3.9"
+    Gem.platforms = [Gem::Platform::RUBY, Gem::Platform.new("x86_64-linux")]
+    @cmd.options[:added_platform] = true
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    body = @fetcher.last_request.body.split("&").sort
+    assert_equal %w[gem_name=a platform=x86_64-linux ruby_abi=3.9 version=1.0], body
+    assert_match(/The version 1\.0 \(x86_64-linux\) \(Ruby ABI 3\.9\) does not exist/, @ui.output)
+    assert_equal [yank_uri], @fetcher.paths
+  ensure
+    Gem.platforms = original_platforms
+  end
+
   def test_execute_with_otp_success
     response_fail = "You have enabled multifactor authentication but your request doesn't have the correct OTP code. Please check it and retry."
     yank_uri = "http://example/api/v1/gems/yank"
