@@ -5,10 +5,14 @@ require "rubygems/content_address"
 
 class TestGemContentAddress < Gem::TestCase
   def test_match
-    assert Gem::ContentAddress.match?("abcdef12")
+    assert Gem::ContentAddress.match?("78be552b")
     refute Gem::ContentAddress.match?("x86_64-linux")
     refute Gem::ContentAddress.match?(nil)
-    refute Gem::ContentAddress.match?("abc")
+    refute Gem::ContentAddress.match?("")
+    refute Gem::ContentAddress.match?(0xabcdef12)
+    refute Gem::ContentAddress.match?(:abcdef12)
+    refute Gem::ContentAddress.match?("abcdef12 ")
+    refute Gem::ContentAddress.match?(" abcdef12")
   end
 
   def test_match_boundary_lengths
@@ -60,6 +64,14 @@ class TestGemContentAddress < Gem::TestCase
     spec = Gem::Specification.new "a", 1
     spec.required_ruby_version = ">= 3.0"
     spec.platform = "x86_64-linux"
+    refute Gem::ContentAddress.content_addressed?(spec)
+  end
+
+  def test_content_addressed_with_eligible_spec_and_invalid_address
+    spec = Gem::Specification.new "a", 1
+    spec.required_ruby_version = ">= 3.0"
+    spec.platform = "x86_64-linux"
+    spec.content_address = "x86_64-linux"
     refute Gem::ContentAddress.content_addressed?(spec)
   end
 
