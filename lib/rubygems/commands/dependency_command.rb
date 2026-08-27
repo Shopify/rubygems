@@ -66,7 +66,7 @@ use with other commands.
       end
     end
 
-    ss.map {|tuple, source| source.fetch_spec(tuple) }
+    fetcher.decode_content_addressable_tuples(ss).map {|tuple, source| source.fetch_spec(tuple) }
   end
 
   def fetch_specs(name_pattern, requirement, prerelease) # :nodoc:
