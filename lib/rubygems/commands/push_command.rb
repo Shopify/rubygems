@@ -170,7 +170,9 @@ The push command will use ~/.gem/credentials to authenticate to a server, but yo
   end
 
   def ruby_matches?(spec)
-    !options[:ruby_abi] || spec.ruby_abi == options[:ruby_abi]
+    return true unless options[:ruby_abi]
+
+    Gem::ContentAddress.applicable?(spec) && spec.ruby_abi == options[:ruby_abi]
   end
 
   def send_push_request(name, args)
