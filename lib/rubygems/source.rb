@@ -406,6 +406,7 @@ class Gem::Source
       requirements = compact_index_requirements(info_row)
       platform = required_platform_from(requirements[:platform])
       next unless platform
+      next unless requirements[:ruby]
 
       ContentAddressableInfo.new(version, suffix, ruby_abi_from(requirements[:ruby]), platform)
     end
