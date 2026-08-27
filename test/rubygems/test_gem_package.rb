@@ -257,6 +257,52 @@ class TestGemPackage < Gem::Package::TarTestCase
     assert_match(/\Aplatformed-1-[0-9a-f]{8}\.gem\z/, built_file)
   end
 
+  def test_ruby_abi_built_gem_preserves_derived_metadata
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    built_file = Gem::Package.build(spec, false, false, nil, "3.4")
+
+    loaded_spec = Gem::Package.new(built_file).spec
+    assert_equal "platformed", loaded_spec.name
+    assert_equal Gem::Version.new("1"), loaded_spec.version
+    assert_equal Gem::Platform.new("arm64-darwin"), loaded_spec.platform
+    assert_equal Gem::Requirement.new("~> 3.4.0"), loaded_spec.required_ruby_version
+    assert_equal "3.4", loaded_spec.ruby_abi
+  end
+
+  def test_required_ruby_version_unchanged_after_successful_matching_build
+    spec = Gem::Specification.new "platformed", "1"
+    spec.summary = "platformed"
+    spec.authors = "platformed"
+    spec.files = ["lib/code.rb"]
+    spec.platform = "arm64-darwin"
+    spec.required_ruby_version = Gem::Requirement.new("~> 3.4.0")
+
+    FileUtils.mkdir "lib"
+
+    File.open "lib/code.rb", "w" do |io|
+      io.write "# lib/code.rb"
+    end
+
+    original_rrv = spec.required_ruby_version
+
+    Gem::Package.build(spec, false, false, nil, "3.4")
+
+    assert_equal original_rrv, spec.required_ruby_version
+    assert_equal Gem::Requirement.new("~> 3.4.0"), spec.required_ruby_version
+  end
+
   def test_ruby_abi_not_passed_does_not_create_content_addressed_file
     spec = Gem::Specification.new "platformed", "1"
     spec.summary = "platformed"
