@@ -192,7 +192,7 @@ class TestGemCommandsListCommand < Gem::TestCase
   def test_execute_remote_content_addressable_and_platform_gems_display_together
     spec_fetcher {}
 
-    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-x86_64-linux,2-abcdef12,3-fedcba98 0000\n"
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-x86_64-linux,2-abcdef12,3-fedcba98,4 0000\n"
     versions_response = util_compact_index_response(versions_body)
     versions_response.uri = Gem::URI("#{@gem_repo}versions")
     @fetcher.data["#{@gem_repo}versions"] = versions_response
@@ -210,7 +210,8 @@ class TestGemCommandsListCommand < Gem::TestCase
     end
 
     expected = <<~OUTPUT.chomp
-      a (3 Platform: arm64-darwin, Ruby ABI: 3.4
+      a (4
+         3 Platform: arm64-darwin, Ruby ABI: 3.4
          2 Platform: x86_64-linux, Ruby ABI: 3.3
          1 Platform: x86_64-linux)
     OUTPUT
