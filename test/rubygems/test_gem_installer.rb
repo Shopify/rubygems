@@ -1210,6 +1210,68 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_equal 1, Dir[File.join(@gemhome, "specifications", "a-2*.gemspec")].size
   end
 
+  def test_install_assigns_content_address_from_filename_with_full_sha
+    _, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
+    end
+
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "a-2-#{digest}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    spec = installer.install
+
+    assert_equal digest, spec.content_address
+    assert_equal "a-2-#{digest}", spec.full_name
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{digest}")
+    assert_path_exist File.join(@gemhome, "cache", "a-2-#{digest}.gem")
+    assert_path_exist File.join(@gemhome, "specifications", "a-2-#{digest}.gemspec")
+  end
+
+  def test_two_content_addressed_gems_with_same_name_version_coexist
+    _, gem1 = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
+      spec.summary = "variant 1"
+    end
+    gem1_backup = File.join(@tempdir, "gem1_backup.gem")
+    FileUtils.cp gem1, gem1_backup
+
+    _, gem2 = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = ">= 3.0"
+      spec.platform = "x86_64-linux"
+      spec.summary = "variant 2"
+    end
+
+    FileUtils.rm_rf File.join(@gemhome, "gems", "a-2-x86_64-linux")
+    FileUtils.rm_rf File.join(@gemhome, "specifications", "a-2-x86_64-linux.gemspec")
+    Gem::Specification.reset
+
+    dir = File.dirname(gem1)
+    digest1 = Digest::SHA256.file(gem1_backup).hexdigest
+    digest2 = Digest::SHA256.file(gem2).hexdigest
+    refute_equal digest1, digest2
+
+    address1 = digest1[0, 8]
+    address2 = digest2[0, 8]
+    file1 = File.join(dir, "a-2-#{address1}.gem")
+    file2 = File.join(dir, "a-2-#{address2}.gem")
+    FileUtils.cp gem1_backup, file1
+    FileUtils.cp gem2, file2
+
+    Gem::Installer.at(file1, install_dir: @gemhome, force: true).install
+    Gem::Installer.at(file2, install_dir: @gemhome, force: true).install
+
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{address1}")
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{address2}")
+    assert_path_exist File.join(@gemhome, "specifications", "a-2-#{address1}.gemspec")
+    assert_path_exist File.join(@gemhome, "specifications", "a-2-#{address2}.gemspec")
+    assert_equal 2, Dir[File.join(@gemhome, "gems", "a-2-*")].size
+    assert_equal 2, Dir[File.join(@gemhome, "specifications", "a-2-*.gemspec")].size
+  end
+
   def test_install
     installer = util_setup_installer
 

@@ -70,20 +70,6 @@ class TestGemNameTuple < Gem::TestCase
     assert_equal [non_content_addressable, content_addressable], [content_addressable, non_content_addressable].sort
   end
 
-  def test_content_addressable_spec_name
-    n = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
-
-    assert_equal "a-1-abcdef12.gemspec", n.spec_name
-  end
-
-  def test_content_addressable_tuples_with_different_addresses_are_distinct
-    first = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
-    second = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "12345678", ruby_abi: "3.4"
-
-    refute_equal first, second
-    refute_equal first.hash, second.hash
-  end
-
   def test_spec_name
     n = Gem::NameTuple.new "a", Gem::Version.new(0), "ruby"
     assert_equal "a-0.gemspec", n.spec_name
