@@ -168,7 +168,7 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
     end
   end
 
-  it "falls back to the pure-ruby gem when the content-addressed fat gem requires a different Ruby ABI" do
+  it "falls back to the pure-ruby gem when the content-addressed gem requires a different Ruby ABI" do
     simulate_platform "x86_64-linux" do
       build_repo2 do
         build_gem "mygem", "1.0" do |s|
@@ -240,6 +240,38 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
       G
 
       expect(the_bundle).to include_gems "mygem 2.0 not_content_addressed"
+    end
+  end
+
+  it "falls back to the non-content-addressed gem when all content-addressed gems require a different Ruby ABI" do
+    simulate_platform "x86_64-linux" do
+      build_repo2 do
+        build_gem "mygem", "1.0" do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.write "lib/mygem.rb", "MYGEM = '1.0 not_content_addressed'"
+        end
+      end
+
+      build_gem "mygem", "1.0", ruby_abi: mismatched_abi, path: gem_repo2("gems") do |s|
+        s.platform = Gem::Platform.new("x86_64-linux")
+        s.required_ruby_version = "~> #{mismatched_abi}.0"
+        s.write "lib/mygem.rb", "MYGEM = '1.0 content_addressed_mismatched_abi_1'"
+      end
+
+      second_mismatched_abi = "#{Gem.ruby_version.segments[0] + 2}.0"
+      build_gem "mygem", "1.0", ruby_abi: second_mismatched_abi, path: gem_repo2("gems") do |s|
+        s.platform = Gem::Platform.new("x86_64-linux")
+        s.required_ruby_version = "~> #{second_mismatched_abi}.0"
+        s.write "lib/mygem.rb", "MYGEM = '1.0 content_addressed_mismatched_abi_2'"
+      end
+
+      install_gemfile <<~G, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }
+        source "https://gem.repo2"
+
+        gem "mygem"
+      G
+
+      expect(the_bundle).to include_gems "mygem 1.0 not_content_addressed"
     end
   end
 end
