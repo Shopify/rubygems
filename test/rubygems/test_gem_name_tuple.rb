@@ -46,6 +46,30 @@ class TestGemNameTuple < Gem::TestCase
     assert_equal a.hash, b.hash
   end
 
+  def test_content_addressable_metadata
+    n = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
+
+    assert_equal "abcdef12", n.content_address
+    assert_equal "3.3", n.ruby_abi
+    assert_equal "a-1-abcdef12", n.full_name
+  end
+
+  def test_non_content_addressable_tuple_does_not_store_nil_content_addressable_metadata_ivars
+    n = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux"
+
+    refute_includes n.instance_variables, :@content_address
+    refute_includes n.instance_variables, :@ruby_abi
+    assert_nil n.content_address
+    assert_nil n.ruby_abi
+  end
+
+  def test_sort_mixed_non_content_addressable_and_content_addressable_tuples
+    non_content_addressable = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux"
+    content_addressable = Gem::NameTuple.new "a", Gem::Version.new(1), "x86_64-linux", content_address: "abcdef12", ruby_abi: "3.3"
+
+    assert_equal [non_content_addressable, content_addressable], [content_addressable, non_content_addressable].sort
+  end
+
   def test_spec_name
     n = Gem::NameTuple.new "a", Gem::Version.new(0), "ruby"
     assert_equal "a-0.gemspec", n.spec_name

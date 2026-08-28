@@ -168,6 +168,72 @@ class TestGemSource < Gem::TestCase
     assert File.exist?(File.join(cache_dir, "versions")), "versions cache file does not exist"
   end
 
+  def test_load_specs_compact_index_content_addressable_metadata
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux\n")
+
+    spec = @source.load_specs(:released).first
+
+    assert_equal "a-1-abcdef12", spec.full_name
+    assert_equal "x86_64-linux", spec.platform
+    assert_equal "abcdef12", spec.content_address
+    assert_equal "3.3", spec.ruby_abi
+  end
+
+  def test_load_specs_compact_index_skips_content_addressable_rows_without_metadata
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n")
+
+    assert_empty @source.load_specs(:released)
+  end
+
+  def test_load_specs_compact_index_skips_content_addressable_rows_without_required_platform
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:~> 3.3.0\n")
+
+    assert_empty @source.load_specs(:released)
+  end
+
+  def test_load_specs_compact_index_does_not_infer_ruby_abi_from_broad_ruby_requirement
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response("---\n1-abcdef12 |checksum:123,ruby:>= 3.3,platform:= x86_64-linux\n")
+
+    spec = @source.load_specs(:released).first
+
+    assert_equal "x86_64-linux", spec.platform
+    assert_equal "abcdef12", spec.content_address
+    assert_nil spec.ruby_abi
+  end
+
+  def test_load_specs_compact_index_latest_keeps_content_addressable_ruby_abi_variants
+    versions_body = +"created_at: 2026-01-01T00:00:00Z\n---\na 1-abcdef12,1-fedcba98 0000\n"
+    versions_response = util_compact_index_response(versions_body)
+    versions_response.uri = Gem::URI("#{@gem_repo}versions")
+    @fetcher.data["#{@gem_repo}versions"] = versions_response
+    @fetcher.data["#{@gem_repo}info/a"] = util_compact_index_response(<<~INFO)
+      ---
+      1-abcdef12 |checksum:123,ruby:~> 3.3.0,platform:= x86_64-linux
+      1-fedcba98 |checksum:456,ruby:~> 3.4.0,platform:= x86_64-linux
+    INFO
+
+    specs = @source.load_specs(:latest)
+
+    assert_equal %w[a-1-abcdef12 a-1-fedcba98], specs.map(&:full_name).sort
+    assert_equal %w[3.3 3.4], specs.map(&:ruby_abi).sort
+  end
+
   def test_load_specs_compact_index_latest_per_platform
     a1 = util_spec "a", "1"
     a2_java = util_spec "a", "2" do |s|
