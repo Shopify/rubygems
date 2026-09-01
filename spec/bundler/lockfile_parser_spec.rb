@@ -63,7 +63,7 @@ RSpec.describe Bundler::LockfileParser do
 
       it "returns the same as > 1.0" do
         expect(subject).to contain_exactly(
-          described_class::BUNDLED, described_class::CHECKSUMS, described_class::RUBY, described_class::PLUGIN
+          described_class::BUNDLED, described_class::CHECKSUMS, described_class::CONTENT_ADDRESSES, described_class::RUBY, described_class::PLUGIN
         )
       end
     end
@@ -73,7 +73,7 @@ RSpec.describe Bundler::LockfileParser do
 
       it "returns the same as for the release version" do
         expect(subject).to contain_exactly(
-          described_class::CHECKSUMS, described_class::RUBY, described_class::PLUGIN
+          described_class::CHECKSUMS, described_class::CONTENT_ADDRESSES, described_class::RUBY, described_class::PLUGIN
         )
       end
     end
@@ -151,7 +151,7 @@ RSpec.describe Bundler::LockfileParser do
           GEM
             remote: https://rubygems.org/
             specs:
-              mygem (1.0-abcdef1234) x86_64-linux
+              mygem (1.0-x86_64-linux)
 
           PLATFORMS
             x86_64-linux
@@ -159,8 +159,11 @@ RSpec.describe Bundler::LockfileParser do
           DEPENDENCIES
             mygem
 
+          CONTENT ADDRESSES
+            mygem (1.0-x86_64-linux) abcdef1234
+
           CHECKSUMS
-            mygem (1.0-abcdef1234) sha256=814828c34f1315d7e7b7e8295184577cc4e969bad6156ac069d02d63f58d82e8
+            mygem (1.0-x86_64-linux) sha256=814828c34f1315d7e7b7e8295184577cc4e969bad6156ac069d02d63f58d82e8
 
           BUNDLED WITH
              1.12.0.rc.2

@@ -8,9 +8,18 @@ module Bundler
     include MatchPlatform
     include ForcePlatform
 
-    attr_reader :name, :version, :platform, :materialization, :content_address
+    attr_reader :name, :version, :platform, :materialization
     attr_accessor :source, :remote, :force_ruby_platform, :dependencies, :required_ruby_version, :required_rubygems_version
     attr_accessor :overrides
+
+    def content_address
+      @content_address
+    end
+
+    def content_address=(value)
+      @content_address = value
+      @full_name = nil
+    end
 
     #
     # For backwards compatibility with existing lockfiles, if the most specific
@@ -122,9 +131,6 @@ module Bundler
     def to_lock
       out = String.new
       out << "    #{lock_name}"
-      # Append the platform additionally for content-addressable gems that contain a SHA
-      # where the platform would otherwise be
-      out << " #{platform}" if Gem::ContentAddress.match?(content_address) && platform != Gem::Platform::RUBY
       out << "\n"
 
       dependencies.sort_by(&:to_s).uniq.each do |dep|

@@ -41,6 +41,7 @@ module Bundler
     BUNDLED      = "BUNDLED WITH"
     DEPENDENCIES = "DEPENDENCIES"
     CHECKSUMS    = "CHECKSUMS"
+    CONTENT_ADDRESSES = "CONTENT ADDRESSES"
     PLATFORMS    = "PLATFORMS"
     RUBY         = "RUBY VERSION"
     GIT          = "GIT"
@@ -57,6 +58,7 @@ module Bundler
       Gem::Version.create("1.12") => [RUBY].freeze,
       Gem::Version.create("1.13") => [PLUGIN].freeze,
       Gem::Version.create("2.5.0") => [CHECKSUMS].freeze,
+      Gem::Version.create("4.1.0") => [CONTENT_ADDRESSES].freeze,
     }.freeze
 
     KNOWN_SECTIONS = SECTIONS_BY_VERSION_INTRODUCED.values.flatten!.freeze
@@ -140,6 +142,8 @@ module Bundler
           # for all gemfiles that don't already explicitly include the feature.
           @checksums = true
           @parse_method = :parse_checksum
+        elsif line == CONTENT_ADDRESSES
+          @parse_method = :parse_content_address
         elsif line == PLATFORMS
           @parse_method = :parse_platform
         elsif line == RUBY
@@ -264,12 +268,11 @@ module Bundler
       checksums = $6
       name = $2
       version = $3
-      content_address = $4 if Gem::ContentAddress.match?($4)
-      platform = $4 unless content_address
+      platform = $4
 
       version = Gem::Version.new(version)
       platform = platform ? Gem::Platform.new(platform) : Gem::Platform::RUBY
-      name_tuple = Gem::NameTuple.new(name, version, platform, content_address: content_address)
+      name_tuple = Gem::NameTuple.new(name, version, platform)
       full_name = name_tuple.full_name
       spec = @specs[full_name]
 
@@ -289,6 +292,28 @@ module Bundler
       end
     end
 
+    def parse_content_address(line)
+      return unless line =~ NAME_VERSION
+
+      spaces = $1
+      return unless spaces.size == 2
+      name = -$2
+      version = $3
+      platform = $4
+      content_address = $6
+
+      return unless Gem::ContentAddress.match?(content_address)
+
+      version = Gem::Version.new(version)
+      platform = platform ? Gem::Platform.new(platform) : Gem::Platform::RUBY
+      lock_name = Gem::NameTuple.new(name, version, platform).lock_name
+
+      spec = @specs.values.find {|s| s.lock_name == lock_name }
+      return unless spec
+
+      spec.content_address = content_address
+    end
+
     def parse_spec(line)
       return unless line =~ NAME_VERSION
       spaces = $1
@@ -297,17 +322,11 @@ module Bundler
 
       if spaces.size == 4
         # only load platform for non-dependency (spec) line
-        if Gem::ContentAddress.match?($4) && $6 && $6 != Gem::Platform::RUBY.to_s
-          content_address = $4
-          platform = $6
-        else
-          platform = $4
-          content_address = $6 if Gem::ContentAddress.match?($6)
-        end
+        platform = $4
 
         version = Gem::Version.new(version)
         platform = platform ? Gem::Platform.new(platform) : Gem::Platform::RUBY
-        @current_spec = LazySpecification.new(name, version, platform, @current_source, content_address: content_address, strict: @strict)
+        @current_spec = LazySpecification.new(name, version, platform, @current_source, strict: @strict)
         @current_source.add_dependency_names(name)
 
         @specs[@current_spec.full_name] = @current_spec

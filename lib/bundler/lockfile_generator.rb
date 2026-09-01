@@ -19,6 +19,7 @@ module Bundler
       add_sources
       add_platforms
       add_dependencies
+      add_content_addresses
       add_checksums
       add_locked_ruby_version
       add_bundled_with
@@ -64,6 +65,15 @@ module Bundler
         out << dep.to_lock << "\n"
         handled << dep.name
       end
+    end
+
+    def add_content_addresses
+      content_addresses = definition.resolve.filter_map do |spec|
+        next unless Gem::ContentAddress.match?(spec.content_address)
+
+        "#{spec.lock_name} #{spec.content_address}"
+      end
+      add_section("CONTENT ADDRESSES", content_addresses) unless content_addresses.empty?
     end
 
     def add_checksums

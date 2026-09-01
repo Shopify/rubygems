@@ -35,7 +35,7 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
       expect(cached_files.size).to eq(1), "expected exactly one cached gem file, found: #{cached_files}"
       expect(cached_files.first).to match(/mygem-1\.0-[0-9a-f]{8,64}\.gem$/)
       expect(default_bundle_path("cache", "mygem-1.0-x86_64-linux.gem")).not_to exist
-      expect(lockfile).to match(/^    mygem \(1\.0-[0-9a-f]{8,64}\) x86_64-linux$/)
+      expect(lockfile).to match(/^    mygem \(1\.0-x86_64-linux\)$/)
 
       content_address = File.basename(cached_files.first, ".gem").rpartition("-").last
       digest = Digest::SHA256.file(cached_files.first).hexdigest
@@ -45,8 +45,9 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
         c.checksum(gem_repo2, "mygem", "1.0", "x86_64-linux", content_address: content_address)
       end
       expect(lockfile).to include(checksums.to_s)
-      expect(lockfile).to include("mygem (1.0-#{content_address}) sha256=#{digest}")
-      expect(lockfile).not_to include("mygem (1.0-x86_64-linux)")
+      expect(lockfile).to include("mygem (1.0-x86_64-linux) sha256=#{digest}")
+      expect(lockfile).to include("CONTENT ADDRESSES")
+      expect(lockfile).to include("mygem (1.0-x86_64-linux) #{content_address}")
     end
   end
 
@@ -354,7 +355,7 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
         GEM
           remote: https://gem.repo2/
           specs:
-            mygem (1.0-#{mismatched_address}) x86_64-linux
+            mygem (1.0-x86_64-linux)
 
         PLATFORMS
           x86_64-linux
@@ -362,8 +363,11 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
         DEPENDENCIES
           mygem
 
+        CONTENT ADDRESSES
+          mygem (1.0-x86_64-linux) #{mismatched_address}
+
         CHECKSUMS
-          mygem (1.0-#{mismatched_address}) sha256=#{mismatched_checksum}
+          mygem (1.0-x86_64-linux) sha256=#{mismatched_checksum}
 
         BUNDLED WITH
            #{Bundler::VERSION}
@@ -374,7 +378,7 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
 
       expect(last_command).to be_failure
       expect(the_bundle).not_to include_gems "mygem 1.0 content_addressed"
-      expect(lockfile).to include("mygem (1.0-#{mismatched_address}) x86_64-linux")
+      expect(lockfile).to include("mygem (1.0-x86_64-linux) #{mismatched_address}")
     end
   end
 

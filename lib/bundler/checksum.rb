@@ -190,80 +190,80 @@ module Bundler
       def replace(spec, checksum)
         return unless checksum
 
-        lock_name = spec.lock_name
+        key = spec.full_name
+        display_name = spec.lock_name
         @store_mutex.synchronize do
-          existing = fetch_checksum(lock_name, checksum.algo)
+          existing = fetch_checksum(key, checksum.algo)
           if !existing || existing.same_source?(checksum)
-            store_checksum(lock_name, checksum)
+            store_checksum(key, checksum)
           else
-            merge_checksum(lock_name, checksum, existing)
+            merge_checksum(key, checksum, existing, display_name)
           end
         end
       end
 
       def missing?(spec)
-        @store[spec.lock_name].nil?
+        @store[spec.full_name].nil?
       end
 
       def empty?(spec)
         return false unless spec.source.is_a?(Bundler::Source::Rubygems)
 
-        @store[spec.lock_name].empty?
+        @store[spec.full_name].empty?
       end
 
       def register(spec, checksum)
-        register_checksum(spec.lock_name, checksum)
+        register_checksum(spec.full_name, checksum, display_name: spec.lock_name)
       end
 
       def merge!(other)
-        other.store.each do |lock_name, checksums|
+        other.store.each do |key, checksums|
           checksums.each do |_algo, checksum|
-            register_checksum(lock_name, checksum)
+            register_checksum(key, checksum)
           end
         end
       end
 
       def to_lock(spec)
         lock_name = spec.lock_name
-        checksums = @store[lock_name]
+        checksums = @store[spec.full_name]
         if checksums&.any?
           "#{lock_name} #{checksums.values.map(&:to_lock).sort.join(",")}"
         else
           lock_name
         end
       end
-
       private
 
-      def register_checksum(lock_name, checksum)
+      def register_checksum(key, checksum, display_name: key)
         @store_mutex.synchronize do
           if checksum
-            existing = fetch_checksum(lock_name, checksum.algo)
+            existing = fetch_checksum(key, checksum.algo)
             if existing
-              merge_checksum(lock_name, checksum, existing)
+              merge_checksum(key, checksum, existing, display_name)
             else
-              store_checksum(lock_name, checksum)
+              store_checksum(key, checksum)
             end
           else
-            init_checksum(lock_name)
+            init_checksum(key)
           end
         end
       end
 
-      def merge_checksum(lock_name, checksum, existing)
-        existing.merge!(checksum) || raise(ChecksumMismatchError.new(lock_name, existing, checksum))
+      def merge_checksum(key, checksum, existing, display_name = key)
+        existing.merge!(checksum) || raise(ChecksumMismatchError.new(display_name, existing, checksum))
       end
 
-      def store_checksum(lock_name, checksum)
-        init_checksum(lock_name)[checksum.algo] = checksum
+      def store_checksum(key, checksum)
+        init_checksum(key)[checksum.algo] = checksum
       end
 
-      def init_checksum(lock_name)
-        @store[lock_name] ||= {}
+      def init_checksum(key)
+        @store[key] ||= {}
       end
 
-      def fetch_checksum(lock_name, algo)
-        @store[lock_name]&.fetch(algo, nil)
+      def fetch_checksum(key, algo)
+        @store[key]&.fetch(algo, nil)
       end
     end
   end
