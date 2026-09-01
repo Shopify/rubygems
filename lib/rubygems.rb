@@ -979,6 +979,13 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   end
 
   ##
+  # The ABI scope for the currently running Ruby.
+
+  def self.ruby_abi
+    ruby_version.segments.first(2).join(".")
+  end
+
+  ##
   # A Gem::Version for the currently running RubyGems
 
   def self.rubygems_version
@@ -1140,7 +1147,9 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
   def self.load_plugins
     Gem.path.each do |gem_path|
+      abi_plugin_dir = File.join(plugindir(gem_path), ruby_abi)
       load_plugin_files Gem::Util.glob_files_in_dir("*#{Gem.plugin_suffix_pattern}", plugindir(gem_path))
+      load_plugin_files Gem::Util.glob_files_in_dir("*#{Gem.plugin_suffix_pattern}", abi_plugin_dir)
     end
   end
 
