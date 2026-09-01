@@ -166,6 +166,31 @@ class TestGemCommandsBuildCommand < Gem::TestCase
     assert_match(/Cannot build gem for Ruby ABI 3\.4 because required_ruby_version/, error.message)
   end
 
+  def test_ruby_abi_rejects_conflicting_required_rubygems_version
+    gem = util_spec "platformed_gem" do |s|
+      s.license = "AGPL-3.0-only"
+      s.files = ["README.md"]
+      s.platform = "arm64-darwin"
+      s.required_ruby_version = "~> 3.4.0"
+      s.required_rubygems_version = "< 4.0"
+    end
+
+    gemspec_file = File.join(@tempdir, gem.spec_name)
+    File.open gemspec_file, "w" do |gs|
+      gs.write gem.to_ruby
+    end
+
+    @cmd.handle_options [gemspec_file, "--ruby-abi", "3.4"]
+    error = assert_raise(ArgumentError) do
+      use_ui @ui do
+        Dir.chdir @tempdir do
+          @cmd.execute
+        end
+      end
+    end
+    assert_match(/Cannot build gem for Ruby ABI 3\.4 because required_rubygems_version/, error.message)
+  end
+
   def test_ruby_abi_defaults_required_ruby_version_when_unset
     gem = util_spec "platformed_gem" do |s|
       s.license = "AGPL-3.0-only"
