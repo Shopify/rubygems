@@ -67,6 +67,11 @@ prefix or only the files that are requireable.
     @version   = options[:version] || Gem::Requirement.default
     @spec_dirs = specification_directories
     @path_kind = path_description @spec_dirs
+    @specification_record = if @spec_dirs.empty?
+      Gem::Specification.specification_record
+    else
+      Gem::SpecificationRecord.new(@spec_dirs)
+    end
 
     names = gem_names
 
@@ -154,7 +159,7 @@ prefix or only the files that are requireable.
 
   def gem_names # :nodoc:
     if options[:all]
-      Gem::Specification.map(&:name)
+      @specification_record.map(&:name)
     else
       get_all_gem_names
     end
@@ -182,7 +187,7 @@ prefix or only the files that are requireable.
   end
 
   def spec_for(name)
-    spec = Gem::Specification.find_all_by_name(name, @version).first
+    spec = @specification_record.find_all_by_name(name, @version).first
 
     return spec if spec
 
@@ -198,7 +203,11 @@ prefix or only the files that are requireable.
 
   def specification_directories # :nodoc:
     options[:specdirs].flat_map do |i|
-      [i, File.join(i, "specifications")]
+      if File.basename(i) == "specifications"
+        [i, File.join(i, Gem.ruby_abi)]
+      else
+        [i, *Gem::SpecificationRecord.specification_dirs_in(i)]
+      end
     end
   end
 end

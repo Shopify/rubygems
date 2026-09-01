@@ -55,7 +55,8 @@ module Gem::ContentAddress
     op, version = requirements.first
     return nil if op != "~>" || version.segments.size != 3 || version.segments[2] != 0
 
-    version.segments[0..1].join(".")
+    abi = version.segments[0..1].join(".")
+    valid_ruby_abi?(abi) ? abi : nil
   end
 
   ##

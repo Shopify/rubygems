@@ -2026,7 +2026,7 @@ class Gem::Specification < Gem::BasicSpecification
 
   def base_dir
     return Gem.dir unless loaded_from
-    @base_dir ||= if default_gem?
+    @base_dir ||= if default_gem? || loaded_from_abi_scoped_spec_dir?
       File.dirname File.dirname File.dirname loaded_from
     else
       File.dirname File.dirname loaded_from
@@ -2332,7 +2332,11 @@ class Gem::Specification < Gem::BasicSpecification
   # gemspec file. eg: /usr/local/lib/ruby/gems/1.8/specifications
 
   def spec_dir
-    @spec_dir ||= File.join base_dir, "specifications"
+    @spec_dir ||= if loaded_from && (Gem::ContentAddress.content_addressed?(self) || loaded_from_abi_scoped_spec_dir?)
+      File.dirname(loaded_from)
+    else
+      Gem::SpecificationRecord.specification_dir_for(self, File.join(base_dir, "specifications"))
+    end
   end
 
   ##
@@ -2635,5 +2639,12 @@ class Gem::Specification < Gem::BasicSpecification
 
   def raw_require_paths # :nodoc:
     @require_paths
+  end
+
+  private
+
+  def loaded_from_abi_scoped_spec_dir?
+    loaded_from &&
+      Gem::SpecificationRecord.abi_scoped_specifications_dir?(File.dirname(loaded_from))
   end
 end

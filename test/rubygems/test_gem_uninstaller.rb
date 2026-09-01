@@ -56,6 +56,23 @@ class TestGemUninstaller < Gem::InstallerTestCase
     assert_path_not_exist @spec.gem_dir
   end
 
+  def test_remove_content_addressed_gem_loaded_from_legacy_flat_specifications_dir
+    spec = util_spec "legacy_ca", 1 do |s|
+      s.content_address = "aabbccdd"
+      s.required_ruby_version = "~> #{Gem.ruby_abi}.0"
+      s.platform = "x86_64-linux"
+    end
+    legacy_gemspec = File.join(@gemhome, "specifications", spec.spec_name)
+    File.write legacy_gemspec, spec.to_ruby_for_cache
+    spec.loaded_from = legacy_gemspec
+    FileUtils.mkdir_p spec.gem_dir
+
+    Gem::Uninstaller.new(nil).remove spec
+
+    assert_path_not_exist legacy_gemspec
+    assert_path_not_exist spec.gem_dir
+  end
+
   def test_remove_executables_force_keep
     uninstaller = Gem::Uninstaller.new nil, executables: false
 

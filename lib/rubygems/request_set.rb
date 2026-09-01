@@ -518,8 +518,10 @@ class Gem::RequestSet
   end
 
   def specs_in(dir)
-    Gem::Util.glob_files_in_dir("*.gemspec", File.join(dir, "specifications")).map do |g|
-      Gem::Specification.load g
+    Gem::SpecificationRecord.specification_dirs_in(dir).flat_map do |d|
+      Gem::Util.glob_files_in_dir("*.gemspec", d).map do |g|
+        Gem::Specification.load g
+      end
     end
   end
 

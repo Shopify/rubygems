@@ -69,7 +69,7 @@ class TestGemCommandsUpdateCommand < Gem::TestCase
     assert_equal "Gems updated: ca_update", out.shift
     assert_empty out
 
-    assert_path_exist File.join(@gemhome, "specifications", "ca_update-1.0.0-#{content_address}.gemspec")
+    assert_path_exist File.join(@gemhome, "specifications", Gem.ruby_abi, "ca_update-1.0.0-#{content_address}.gemspec")
   end
 
   def test_execute_platform_compact_index_gem

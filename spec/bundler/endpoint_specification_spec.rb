@@ -230,6 +230,21 @@ RSpec.describe Bundler::EndpointSpecification do
     end
   end
 
+  describe "#local_specification_path" do
+    let(:suffix) { "abc1234567" }
+    let(:metadata) { { "platform" => ["= arm64-darwin"], "ruby" => ["~> 3.4.0"] } }
+
+    before do
+      allow(spec).to receive(:base_dir).and_return("/gems")
+    end
+
+    it "uses the gem's ABI-scoped directory for a content-addressed specification" do
+      expect(spec.send(:local_specification_path)).to eq(
+        "/gems/specifications/3.4/foo-1.0.0-abc1234567.gemspec"
+      )
+    end
+  end
+
   it "supports equality comparison" do
     remote_spec = double(:remote_spec, required_ruby_version: nil, required_rubygems_version: nil)
     allow(spec_fetcher).to receive(:fetch_spec).and_return(remote_spec)

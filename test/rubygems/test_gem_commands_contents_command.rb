@@ -244,6 +244,54 @@ class TestGemCommandsContentsCommand < Gem::TestCase
     assert_equal "", @ui.error
   end
 
+  def test_execute_with_spec_dir_finds_content_addressed_gem_in_abi_scoped_dir
+    install_dir = File.join(@tempdir, "other_gem_home")
+    spec = util_spec "foo" do |s|
+      s.content_address = "deadbeef"
+      s.required_ruby_version = "~> #{Gem.ruby_abi}.0"
+      s.platform = Gem::Platform.local
+      s.files = %w[lib/foo.rb]
+    end
+    spec_dir = File.join(install_dir, "specifications", Gem.ruby_abi)
+    FileUtils.mkdir_p spec_dir
+    File.write(File.join(spec_dir, spec.spec_name), spec.to_ruby_for_cache)
+    write_file File.join(install_dir, "gems", spec.full_name, "lib", "foo.rb")
+
+    @cmd.options[:args] = %w[foo]
+    @cmd.options[:specdirs] = [install_dir]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_match %r{lib/foo\.rb}, @ui.output
+    assert_empty @ui.error
+  end
+
+  def test_execute_with_spec_dir_as_specifications_dir_finds_content_addressed_gem_in_abi_scoped_dir
+    install_dir = File.join(@tempdir, "other_gem_home")
+    spec = util_spec "foo" do |s|
+      s.content_address = "deadbeef"
+      s.required_ruby_version = "~> #{Gem.ruby_abi}.0"
+      s.platform = Gem::Platform.local
+      s.files = %w[lib/foo.rb]
+    end
+    abi_spec_dir = File.join(install_dir, "specifications", Gem.ruby_abi)
+    FileUtils.mkdir_p abi_spec_dir
+    File.write(File.join(abi_spec_dir, spec.spec_name), spec.to_ruby_for_cache)
+    write_file File.join(install_dir, "gems", spec.full_name, "lib", "foo.rb")
+
+    @cmd.options[:args] = %w[foo]
+    @cmd.options[:specdirs] = [File.join(install_dir, "specifications")]
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    assert_match %r{lib/foo\.rb}, @ui.output
+    assert_empty @ui.error
+  end
+
   def test_execute_no_prefix
     @cmd.options[:args] = %w[foo]
     @cmd.options[:prefix] = false

@@ -4326,4 +4326,101 @@ end
       end
     end
   end
+
+  def util_content_addressed_spec
+    spec = util_spec "ca", "1" do |s|
+      s.platform = "x86_64-linux"
+      s.required_ruby_version = "~> #{Gem.ruby_abi}.0"
+    end
+    spec.content_address = "deadbeefdeadbeef"
+    spec
+  end
+
+  def test_content_addressed_spec_paths_roundtrip_from_abi_scoped_dir
+    spec = util_content_addressed_spec
+    spec.loaded_from = File.join(@gemhome, "specifications", Gem.ruby_abi, spec.spec_name)
+
+    assert_equal @gemhome, spec.base_dir
+    assert_equal File.join(@gemhome, "specifications", Gem.ruby_abi), spec.spec_dir
+    assert_equal spec.loaded_from, spec.spec_file
+    assert_equal File.join(@gemhome, "gems", "ca-1-deadbeefdeadbeef"), spec.gem_dir
+  end
+
+  def test_content_addressed_spec_loaded_from_numeric_non_specification_dir_uses_normal_base_dir
+    spec = util_content_addressed_spec
+    spec.loaded_from = File.join(@tempdir, "3.4", spec.spec_name)
+
+    assert_equal @tempdir, spec.base_dir
+  end
+
+  def test_content_addressed_spec_loaded_from_legacy_flat_dir_keeps_spec_file
+    spec = util_content_addressed_spec
+    specifications_dir = File.join(@gemhome, "specifications")
+    spec.loaded_from = File.join(specifications_dir, spec.spec_name)
+
+    assert_equal specifications_dir, spec.spec_dir
+    assert_equal spec.loaded_from, spec.spec_file
+  end
+
+  def test_stubs_find_content_addressed_specs_in_abi_scoped_dir
+    spec = util_content_addressed_spec
+    dir = File.join(@gemhome, "specifications", Gem.ruby_abi)
+    FileUtils.mkdir_p dir
+    File.write(File.join(dir, spec.spec_name), spec.to_ruby_for_cache)
+
+    Gem::Specification.reset
+
+    stub = Gem::Specification.stubs.find {|s| s.name == "ca" }
+    refute_nil stub
+    assert_equal "ca-1-deadbeefdeadbeef", stub.full_name
+    assert_equal @gemhome, stub.base_dir
+    assert_equal File.join(@gemhome, "gems"), stub.gems_dir
+  end
+
+  def test_specification_record_from_path_includes_abi_scoped_dir
+    spec = util_content_addressed_spec
+    specifications_dir = File.join(@gemhome, "specifications")
+    abi_dir = File.join(specifications_dir, Gem.ruby_abi)
+    FileUtils.mkdir_p abi_dir
+    File.write(File.join(abi_dir, spec.spec_name), spec.to_ruby_for_cache)
+
+    record = Gem::SpecificationRecord.from_path(@gemhome)
+
+    assert record.stubs.any? {|stub| stub.name == "ca" }
+  end
+
+  def test_specification_record_treats_numeric_custom_dir_as_flat
+    spec = util_spec "custom", 1
+    custom_dir = File.join(@tempdir, "3.4")
+    FileUtils.mkdir_p custom_dir
+    File.write(File.join(custom_dir, spec.spec_name), spec.to_ruby_for_cache)
+
+    record = Gem::SpecificationRecord.new([custom_dir])
+    stub = record.stubs.find {|candidate| candidate.name == "custom" }
+
+    assert_equal @tempdir, stub.base_dir
+    assert_equal File.join(@tempdir, "gems"), stub.gems_dir
+  end
+
+  def test_stubs_ignore_specifications_dirs_of_other_abis
+    spec = util_content_addressed_spec
+    dir = File.join(@gemhome, "specifications", "99.9")
+    FileUtils.mkdir_p dir
+    File.write(File.join(dir, spec.spec_name), spec.to_ruby_for_cache)
+
+    Gem::Specification.reset
+
+    assert_nil Gem::Specification.stubs.find {|s| s.name == "ca" }
+  end
+
+  def test_content_addressed_specs_are_invisible_to_flat_specifications_glob
+    spec = util_content_addressed_spec
+    dir = File.join(@gemhome, "specifications", Gem.ruby_abi)
+    FileUtils.mkdir_p dir
+    File.write(File.join(dir, spec.spec_name), spec.to_ruby_for_cache)
+
+    # what a pre-4.1 RubyGems sees: a non-recursive glob of specifications/
+    flat = Gem::Util.glob_files_in_dir("*.gemspec", File.join(@gemhome, "specifications"))
+    assert_empty flat.select {|path| File.basename(path).start_with?("ca-1") }
+  end
 end
