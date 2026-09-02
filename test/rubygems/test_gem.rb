@@ -1561,6 +1561,23 @@ class TestGem < Gem::TestCase
     end
   end
 
+  def test_load_plugins_prefers_abi_scoped_stub_over_root_stub_for_the_same_gem
+    plugins_dir = Gem.plugindir
+    current_abi_plugins_dir = File.join plugins_dir, Gem.ruby_abi
+
+    write_file File.join(plugins_dir, "mygem_plugin.rb") do |fp|
+      fp.puts "class TestGem; PLUGINS_LOADED << 'root'; end"
+    end
+
+    write_file File.join(current_abi_plugins_dir, "mygem_plugin.rb") do |fp|
+      fp.puts "class TestGem; PLUGINS_LOADED << 'abi'; end"
+    end
+
+    Gem.load_plugins
+
+    assert_equal %w[abi], PLUGINS_LOADED
+  end
+
   def test_load_user_installed_plugins
     @orig_gem_home = ENV["GEM_HOME"]
     ENV["GEM_HOME"] = @gemhome

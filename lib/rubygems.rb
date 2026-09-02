@@ -1143,13 +1143,22 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   end
 
   ##
-  # Find rubygems plugin files in the standard location and load them
+  # Find rubygems plugin files in the standard location and load them.
+  # At most one stub is loaded per gem: a stub in the running Ruby's ABI
+  # directory wins over a root stub of the same name, since it was
+  # installed specifically for this Ruby.
 
   def self.load_plugins
     Gem.path.each do |gem_path|
       abi_plugin_dir = File.join(plugindir(gem_path), ruby_abi)
-      load_plugin_files Gem::Util.glob_files_in_dir("*#{Gem.plugin_suffix_pattern}", plugindir(gem_path))
-      load_plugin_files Gem::Util.glob_files_in_dir("*#{Gem.plugin_suffix_pattern}", abi_plugin_dir)
+      abi_plugins = Gem::Util.glob_files_in_dir("*#{Gem.plugin_suffix_pattern}", abi_plugin_dir)
+      abi_plugin_names = abi_plugins.map {|plugin| File.basename(plugin) }
+
+      root_plugins = Gem::Util.glob_files_in_dir("*#{Gem.plugin_suffix_pattern}", plugindir(gem_path))
+      root_plugins.reject! {|plugin| abi_plugin_names.include?(File.basename(plugin)) }
+
+      load_plugin_files root_plugins
+      load_plugin_files abi_plugins
     end
   end
 
