@@ -31,7 +31,9 @@ module Bundler
       return matching if addressable.empty?
 
       compatible = addressable.select(&:matches_current_metadata?)
-      compatible.any? ? compatible : non_addressable
+      return compatible if compatible.any?
+
+      non_addressable.any? ? non_addressable : matching
     end
 
     def self.select_best_local_platform_match(specs, force_ruby: false, locked_platforms: nil)

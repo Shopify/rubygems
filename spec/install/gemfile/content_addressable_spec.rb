@@ -292,6 +292,30 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
     end
   end
 
+  it "reports the Ruby version requirement when only incompatible content-addressed gems exist" do
+    simulate_platform "x86_64-linux" do
+      build_repo2 do
+        build_gem "other", "1.0"
+      end
+
+      build_gem "mygem", "1.0", ruby_abi: mismatched_abi, path: gem_repo2("gems") do |s|
+        s.platform = Gem::Platform.new("x86_64-linux")
+        s.required_ruby_version = "~> #{mismatched_abi}.0"
+        s.write "lib/mygem.rb", "MYGEM = '1.0 content_addressed'"
+      end
+
+      install_gemfile <<~G, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }, raise_on_error: false
+        source "https://gem.repo2"
+
+        gem "mygem"
+      G
+
+      expect(last_command).to be_failure
+      expect(err).to include("every version of mygem depends on Ruby ~> #{mismatched_abi}.0")
+      expect(err).not_to include("Could not find gem 'mygem'")
+    end
+  end
+
   it "installs a locked content-addressed gem in frozen mode" do
     simulate_platform "x86_64-linux" do
       build_repo2 do
