@@ -46,7 +46,7 @@ RSpec.describe Bundler::EndpointSpecification do
   describe "#parse_metadata" do
     context "when a content-addressed suffix has platform metadata" do
       let(:suffix) { "abc1234567" }
-      let(:metadata) { { "platform" => ["= arm64-darwin"], "ruby" => [">= 3.0.0"] } }
+      let(:metadata) { { "platform" => ["= arm64-darwin"], "ruby" => ["~> 3.4.0"] } }
 
       it "uses the platform from the metadata" do
         expect(spec.platform).to eq(Gem::Platform.new("arm64-darwin"))
@@ -71,6 +71,24 @@ RSpec.describe Bundler::EndpointSpecification do
       let(:suffix) { "abc1234567" }
 
       it "treats the suffix as a platform without a content address" do
+        expect(spec.content_address).to be_nil
+      end
+    end
+
+    context "when a content-addressed suffix has no ruby metadata" do
+      let(:suffix) { "abc1234567" }
+      let(:metadata) { { "platform" => ["= arm64-darwin"] } }
+
+      it "does not assign a content address" do
+        expect(spec.content_address).to be_nil
+      end
+    end
+
+    context "when a content-addressed suffix has non-ABI ruby metadata" do
+      let(:suffix) { "abc1234567" }
+      let(:metadata) { { "platform" => ["= arm64-darwin"], "ruby" => [">= 3.0"] } }
+
+      it "does not assign a content address" do
         expect(spec.content_address).to be_nil
       end
     end
@@ -184,7 +202,7 @@ RSpec.describe Bundler::EndpointSpecification do
   describe "#required_ruby_version" do
     context "when the specification is content-addressed" do
       let(:suffix) { "abc1234567" }
-      let(:metadata) { { "platform" => ["= arm64-darwin"] } }
+      let(:metadata) { { "platform" => ["= arm64-darwin"], "ruby" => ["~> 3.4.0"] } }
 
       it "fetches the remote specification using the content address" do
         remote_spec = double(:remote_spec, required_ruby_version: nil)
