@@ -336,6 +336,41 @@ class TestGemResolver < Gem::TestCase
     assert_resolves_to [ca_spec], resolver
   end
 
+  def test_prefers_compatible_content_addressed_gem_over_more_specific_platform
+    util_set_arch "arm64-darwin-27"
+    current_abi = "#{Gem.ruby_version.segments[0]}.#{Gem.ruby_version.segments[1]}"
+
+    ca_spec = util_spec "a", "1"
+    fat_spec = util_spec "a", "1"
+
+    ca_spec.platform = "arm64-darwin"
+    ca_spec.required_ruby_version = "~> #{current_abi}.0"
+    ca_spec.content_address = "abc1234567"
+    fat_spec.platform = "arm64-darwin-27"
+
+    s = set(fat_spec, ca_spec)
+    dependency = make_dep "a"
+    resolver = Gem::Resolver.new([dependency], s)
+    assert_resolves_to [ca_spec], resolver
+  end
+
+  def test_prefers_more_specific_platform_over_content_addressed_gem_for_another_ruby
+    util_set_arch "arm64-darwin-27"
+
+    ca_spec = util_spec "a", "1"
+    fat_spec = util_spec "a", "1"
+
+    ca_spec.platform = "arm64-darwin"
+    ca_spec.required_ruby_version = ">= 999"
+    ca_spec.content_address = "abc1234567"
+    fat_spec.platform = "arm64-darwin-27"
+
+    s = set(fat_spec, ca_spec)
+    dependency = make_dep "a"
+    resolver = Gem::Resolver.new([dependency], s)
+    assert_resolves_to [fat_spec], resolver
+  end
+
   def test_falls_back_to_non_content_addressable_when_content_addressed_gem_requires_other_rubygems_version
     ca_spec = util_spec "a", "1"
     non_content_addressable_spec = util_spec "a", "1"
