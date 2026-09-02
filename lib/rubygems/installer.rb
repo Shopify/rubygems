@@ -975,6 +975,13 @@ class Gem::Installer
 
   def assign_content_address
     address = @package.content_address
+    expected = options[:content_address]
+
+    if expected && address != expected
+      raise Gem::InstallError, "content address mismatch for #{spec.full_name}: " \
+        "expected #{expected}, got #{address || "no content address"}"
+    end
+
     @gem_dir = nil if address != spec.content_address
     spec.content_address = address
   end

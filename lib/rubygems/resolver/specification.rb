@@ -111,7 +111,9 @@ class Gem::Resolver::Specification
 
     gem = download options
 
-    installer = Gem::Installer.at gem, options
+    installer = Gem::Installer.at gem, options.merge(
+      content_address: (spec.content_address if Gem::ContentAddress.content_addressed?(spec, validate_ruby_abi: false))
+    )
 
     yield installer if block_given?
 

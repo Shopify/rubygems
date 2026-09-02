@@ -893,6 +893,46 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_path_not_exist abi_plugin_path
   end
 
+  def test_install_with_matching_content_address
+    _, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = "~> 3.4.0"
+      spec.platform = "x86_64-linux"
+    end
+
+    address = Digest::SHA256.file(a_gem).hexdigest[0, 8]
+    ca_gem = File.join(File.dirname(a_gem), "a-2-#{address}.gem")
+    FileUtils.cp a_gem, ca_gem
+
+    installer = Gem::Installer.at ca_gem, install_dir: @gemhome, force: true,
+                                          content_address: address
+    spec = installer.install
+
+    assert_equal address, spec.content_address
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{address}")
+  end
+
+  def test_install_raises_when_content_address_is_not_carried_by_package
+    platform_spec, platform_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = "~> 3.4.0"
+      spec.platform = "x86_64-linux"
+    end
+
+    Gem::Installer.at(platform_gem, install_dir: @gemhome, force: true).install
+    platform_gem_dir = File.join(@gemhome, "gems", platform_spec.full_name)
+    assert_path_exist platform_gem_dir
+
+    installer = Gem::Installer.at platform_gem, install_dir: @gemhome, force: true,
+                                                content_address: "deadbeef"
+
+    e = assert_raise Gem::InstallError do
+      installer.install
+    end
+
+    assert_match(/content address mismatch/, e.message)
+    assert_match(/expected deadbeef, got no content address/, e.message)
+    assert_path_exist platform_gem_dir
+  end
+
   def test_plugin_stub_dir_for_content_addressed_gem_is_abi_scoped
     spec = Gem::Specification.new "a", 2
     spec.platform = "x86_64-linux"
