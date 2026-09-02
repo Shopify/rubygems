@@ -480,3 +480,39 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
     end
   end
 end
+
+RSpec.describe "bundle install with content-addressable gems invisible to pre-4.1 RubyGems clients", :compact_index, rubygems: ">= 4.1.0.a" do
+  let(:current_abi) { "#{Gem.ruby_version.segments[0]}.#{Gem.ruby_version.segments[1]}" }
+
+  it "installs content-addressed gems constrained so older clients refuse them" do
+    simulate_platform "x86_64-linux" do
+      build_repo2 do
+        build_gem "mygem", "1.0" do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.write "lib/mygem.rb", "MYGEM = '1.0 not_content_addressed'"
+        end
+      end
+
+      build_gem "mygem", "1.0", ruby_abi: current_abi, path: gem_repo2("gems") do |s|
+        s.platform = Gem::Platform.new("x86_64-linux")
+        s.required_ruby_version = "~> #{current_abi}.0"
+        s.write "lib/mygem.rb", "MYGEM = '1.0 content_addressed'"
+      end
+
+      install_gemfile <<~G, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }
+        source "https://gem.repo2"
+
+        gem "mygem"
+      G
+
+      expect(the_bundle).to include_gems "mygem 1.0 content_addressed"
+
+      installed_gemspec = Dir[default_bundle_path("specifications", "mygem-1.0-*.gemspec").to_s].first
+      spec = Gem::Specification.load(installed_gemspec)
+
+      expect(spec.required_rubygems_version).to eq(Gem::Requirement.new(">= 4.1.0.a"))
+      expect(spec.required_rubygems_version.satisfied_by?(Gem::Version.new("4.0.9"))).to be false
+      expect(spec.required_rubygems_version.satisfied_by?(Gem.rubygems_version)).to be true
+    end
+  end
+end
