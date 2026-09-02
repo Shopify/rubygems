@@ -163,7 +163,7 @@ class Gem::Package
 
       package = new io
       package.spec = spec.dup
-      gem_file = package.build_content_addressable_file skip_validation, strict_validation, ruby_abi
+      gem_file = package.build_content_addressable_file ruby_abi, skip_validation, strict_validation
 
       spec.required_ruby_version = package.spec.required_ruby_version
       spec.required_rubygems_version = package.spec.required_rubygems_version
@@ -381,20 +381,20 @@ EOM
   end
 
   ##
-  # Builds this package, then writes it to a content-addressable file name
-  # derived from the SHA-256 digest of the gem contents, e.g.
-  # "example-1.0-01234567.gem". Returns the file name of the written gem.
+  # Builds this package scoped to +ruby_abi+ ("X.Y"), then writes it to a
+  # content-addressable file name derived from the SHA-256 digest of the gem
+  # contents, e.g. "example-1.0-01234567.gem". Returns the file name of the
+  # written gem.
   #
-  # When +ruby_abi+ ("X.Y") is given, the spec is validated for an ABI-scoped
-  # build and its +required_ruby_version+ and +required_rubygems_version+ are
-  # constrained before building.
+  # The spec is validated for an ABI-scoped build and its
+  # +required_ruby_version+ and +required_rubygems_version+ are constrained
+  # before building, so every gem this method produces is eligible for
+  # content addressing.
 
-  def build_content_addressable_file(skip_validation = false, strict_validation = false, ruby_abi = nil)
-    if ruby_abi
-      validate_ruby_abi ruby_abi
-      @spec.required_rubygems_version = normalized_required_rubygems_version(ruby_abi)
-      @spec.required_ruby_version = Gem::ContentAddress.ruby_abi_requirement(ruby_abi)
-    end
+  def build_content_addressable_file(ruby_abi, skip_validation = false, strict_validation = false)
+    validate_ruby_abi ruby_abi
+    @spec.required_rubygems_version = normalized_required_rubygems_version(ruby_abi)
+    @spec.required_ruby_version = Gem::ContentAddress.ruby_abi_requirement(ruby_abi)
 
     build skip_validation, strict_validation
 
@@ -403,6 +403,8 @@ EOM
     File.binwrite(gem_file, bytes)
 
     say "  File: #{gem_file}"
+    say "  Platform: #{@spec.platform}"
+    say "  Ruby ABI: #{ruby_abi}"
 
     gem_file
   end

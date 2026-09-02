@@ -69,6 +69,8 @@ class TestGemCommandsBuildCommand < Gem::TestCase
     assert_equal "  Name: platformed_gem", output.shift
     assert_equal "  Version: 2", output.shift
     assert_match(/\A  File: platformed_gem-2-[0-9a-f]{8}\.gem\z/, output.shift)
+    assert_equal "  Platform: arm64-darwin", output.shift
+    assert_equal "  Ruby ABI: 3.4", output.shift
     assert_equal [], output
   end
 
