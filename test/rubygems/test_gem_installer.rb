@@ -893,6 +893,39 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_path_not_exist abi_plugin_path
   end
 
+  def test_plugin_stub_dir_for_content_addressed_gem_is_abi_scoped
+    spec = Gem::Specification.new "a", 2
+    spec.platform = "x86_64-linux"
+    spec.required_ruby_version = "~> 3.4.0"
+    spec.content_address = "abcdef12"
+
+    installer = util_installer spec, @gemhome
+
+    assert_equal File.join(@gemhome, "plugins", "3.4"),
+                 installer.send(:plugin_stub_dir_for, spec, File.join(@gemhome, "plugins"))
+  end
+
+  def test_plugin_stub_dir_for_spec_with_address_but_non_abi_requirement_is_not_abi_scoped
+    spec = Gem::Specification.new "a", 2
+    spec.platform = "x86_64-linux"
+    spec.required_ruby_version = ">= 3.0"
+    spec.content_address = "abcdef12"
+
+    installer = util_installer spec, @gemhome
+
+    assert_equal File.join(@gemhome, "plugins"),
+                 installer.send(:plugin_stub_dir_for, spec, File.join(@gemhome, "plugins"))
+  end
+
+  def test_ruby_abi_plugin_dir_for_non_content_addressed_gem_uses_running_abi
+    spec = Gem::Specification.new "a", 2
+
+    installer = util_installer spec, @gemhome
+
+    assert_equal File.join(@gemhome, "plugins", Gem.ruby_abi),
+                 installer.send(:ruby_abi_plugin_dir_for, spec, File.join(@gemhome, "plugins"))
+  end
+
   def test_remove_plugins_for_content_addressed_gem_removes_stub_from_ruby_abi_dir
     ruby_abi = Gem.ruby_abi
 
@@ -1140,7 +1173,7 @@ class TestGemInstaller < Gem::InstallerTestCase
 
   def test_install_assigns_content_address_from_filename
     _, a_gem = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
     end
 
@@ -1163,7 +1196,7 @@ class TestGemInstaller < Gem::InstallerTestCase
 
   def test_install_raises_for_mismatched_content_address
     _, a_gem = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
     end
     dir = File.dirname(a_gem)
@@ -1242,7 +1275,7 @@ class TestGemInstaller < Gem::InstallerTestCase
 
   def test_content_address_not_set_with_only_required_ruby_version
     _, a_gem = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
     end
     digest = Digest::SHA256.file(a_gem).hexdigest
     address = digest[0, 8]
@@ -1273,7 +1306,7 @@ class TestGemInstaller < Gem::InstallerTestCase
   def test_require_works_after_content_addressed_install
     source_spec, a_gem = util_gem("a", 2) do |spec|
       spec.files = ["lib/ca_activation_test.rb"]
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
     end
     FileUtils.rm_rf source_spec.gem_dir
@@ -1294,7 +1327,7 @@ class TestGemInstaller < Gem::InstallerTestCase
 
   def test_reinstalling_content_addressed_gem_is_idempotent
     source_spec, a_gem = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
     end
     FileUtils.rm_rf source_spec.gem_dir
@@ -1319,7 +1352,7 @@ class TestGemInstaller < Gem::InstallerTestCase
 
   def test_install_assigns_content_address_from_filename_with_full_sha
     _, a_gem = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
     end
 
@@ -1339,7 +1372,7 @@ class TestGemInstaller < Gem::InstallerTestCase
 
   def test_two_content_addressed_gems_with_same_name_version_coexist
     _, gem1 = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
       spec.summary = "variant 1"
     end
@@ -1347,7 +1380,7 @@ class TestGemInstaller < Gem::InstallerTestCase
     FileUtils.cp gem1, gem1_backup
 
     _, gem2 = util_gem("a", 2) do |spec|
-      spec.required_ruby_version = ">= 3.0"
+      spec.required_ruby_version = "~> 3.4.0"
       spec.platform = "x86_64-linux"
       spec.summary = "variant 2"
     end

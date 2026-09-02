@@ -164,7 +164,7 @@ The API key to send is resolved in this order: the GEM_HOST_API_KEY environment 
   def ruby_matches?(spec)
     return true unless options[:ruby_abi]
 
-    Gem::ContentAddress.applicable?(spec) && spec.ruby_abi == options[:ruby_abi]
+    Gem::ContentAddress.eligible?(spec) && spec.ruby_abi == options[:ruby_abi]
   end
 
   def send_push_request(name, args)
