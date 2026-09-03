@@ -204,6 +204,29 @@ module Gem
 
   require "rubygems/specification"
 
+  class SpecificationRecord
+    # Can be removed once RubyGems 4.0.0 support is dropped
+    unless respond_to?(:specification_dirs_in)
+      def self.specification_dirs_in(path)
+        [File.join(path, "specifications")]
+      end
+    end
+
+    # Can be removed once RubyGems 4.0.0 support is dropped
+    unless respond_to?(:specification_dir_for)
+      def self.specification_dir_for(spec, specifications)
+        specifications
+      end
+    end
+
+    # Can be removed once RubyGems 4.0.0 support is dropped
+    unless respond_to?(:abi_scoped_specifications_dir?)
+      def self.abi_scoped_specifications_dir?(dir)
+        false
+      end
+    end
+  end
+
   # Can be removed once RubyGems 3.5.14 support is dropped
   VALIDATES_FOR_RESOLUTION = Specification.new.respond_to?(:validate_for_resolution).freeze
 

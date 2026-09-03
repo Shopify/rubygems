@@ -2,6 +2,7 @@
 
 require_relative "../rubygems"
 require_relative "user_interaction"
+require "fileutils"
 
 ##
 # Cleans up after a partially-failed uninstall or for an invalid
@@ -53,7 +54,40 @@ class Gem::Doctor
   # Specs installed in this gem repository
 
   def installed_specs # :nodoc:
-    @installed_specs ||= Gem::Specification.map(&:full_name)
+    @installed_specs ||= flat_installed_specs + abi_scoped_installed_specs
+  end
+
+  def flat_installed_specs # :nodoc:
+    Gem::Specification.filter_map do |spec|
+      next spec.full_name unless spec.loaded_from
+
+      dir = File.dirname(spec.loaded_from)
+      spec.full_name unless Gem::SpecificationRecord.abi_scoped_specifications_dir?(dir)
+    end
+  end
+
+  def abi_scoped_installed_specs # :nodoc:
+    abi_scoped_specification_dirs.flat_map do |dir|
+      abi = File.basename(dir)
+
+      Gem::Util.glob_files_in_dir("*.gemspec", dir).filter_map do |path|
+        basename = File.basename(path, ".gemspec")
+        spec = Gem::Specification.load(path)
+
+        basename if spec && Gem::ContentAddress.content_addressed?(spec) &&
+          spec.full_name == basename && spec.ruby_abi == abi
+      end
+    end
+  end
+
+  def abi_scoped_specification_dirs # :nodoc:
+    @abi_scoped_specification_dirs ||= begin
+      specifications_dir = File.join(@gem_repository, "specifications")
+
+      Gem::Util.glob_files_in_dir("*", specifications_dir).select do |path|
+        File.directory?(path) && !File.symlink?(path) && Gem::SpecificationRecord.abi_scoped_specifications_dir?(path)
+      end
+    end
   end
 
   ##
@@ -95,13 +129,19 @@ class Gem::Doctor
     REPOSITORY_EXTENSION_MAP.each do |sub_directory, extension|
       doctor_child sub_directory, extension
     end
+
+    abi_scoped_specification_dirs.each do |dir|
+      doctor_child File.join("specifications", File.basename(dir)), ".gemspec", dir
+    end
   end
 
   ##
   # Removes files in +sub_directory+ with +extension+
 
-  def doctor_child(sub_directory, extension) # :nodoc:
-    directory = File.join(@gem_repository, sub_directory)
+  def doctor_child(sub_directory, extension, absolute_dir = nil) # :nodoc:
+    directory = absolute_dir || File.join(@gem_repository, sub_directory)
+
+    return if absolute_dir && File.symlink?(directory)
 
     Dir.entries(directory).sort.each do |ent|
       next if [".", ".."].include?(ent)
@@ -113,6 +153,9 @@ class Gem::Doctor
       next if installed_specs.include? basename
       next if /^rubygems-\d/.match?(basename)
       next if sub_directory == "specifications" && basename == "default"
+      next if %w[specifications plugins].include?(sub_directory) &&
+              File.directory?(child) && !File.symlink?(child) &&
+              Gem::ContentAddress.valid_ruby_abi?(File.basename(child))
       next if sub_directory == "plugins" && Gem.plugin_suffix_regexp =~ basename
 
       type = File.directory?(child) ? "directory" : "file"

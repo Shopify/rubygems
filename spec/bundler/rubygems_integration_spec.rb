@@ -1,6 +1,33 @@
 # frozen_string_literal: true
 
 RSpec.describe Bundler::RubygemsIntegration do
+  describe "#spec_cache_dirs" do
+    subject(:integration) { described_class.new }
+
+    before do
+      allow(integration).to receive(:gem_path).and_return([gem_home])
+      allow(Gem).to receive(:spec_cache_dir).and_return(spec_cache_dir)
+      FileUtils.mkdir_p File.join(gem_home, "specifications")
+      FileUtils.mkdir_p spec_cache_dir
+    end
+
+    let(:gem_home) { bundled_app("gem_home").to_s }
+    let(:spec_cache_dir) { bundled_app("spec_cache").to_s }
+
+    it "includes the ABI-scoped directory when RubyGems supports Ruby ABI" do
+      abi_dir = File.join(gem_home, "specifications", Gem.ruby_abi)
+      FileUtils.mkdir_p abi_dir
+
+      expect(integration.spec_cache_dirs).to include(abi_dir)
+    end
+
+    it "excludes the ABI-scoped directory when it does not exist on disk" do
+      expect(integration.spec_cache_dirs).not_to include(
+        File.join(gem_home, "specifications", Gem.ruby_abi)
+      )
+    end
+  end
+
   context "#validate" do
     let(:spec) do
       Gem::Specification.new do |s|

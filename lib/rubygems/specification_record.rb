@@ -3,15 +3,33 @@
 module Gem
   class SpecificationRecord
     def self.dirs_from(paths)
-      paths.map do |path|
-        File.join(path, "specifications")
+      paths.flat_map do |path|
+        specification_dirs_in(path)
       end
+    end
+
+    def self.specification_dirs_in(path)
+      specifications = File.join(path, "specifications")
+      [specifications, File.join(specifications, Gem.ruby_abi)]
     end
 
     def self.from_path(path)
       new(dirs_from([path]))
     end
 
+    def self.specification_dir_for(spec, specifications)
+      return specifications unless Gem::ContentAddress.content_addressed?(spec)
+
+      File.join(specifications, spec.ruby_abi)
+    end
+
+    def self.abi_scoped_specifications_dir?(dir)
+      Gem::ContentAddress.valid_ruby_abi?(File.basename(dir)) &&
+        File.basename(File.dirname(dir)) == "specifications"
+    end
+
+    # +dirs+ must already include ABI-scoped subdirectories. Use
+    # dirs_from or specification_dirs_in to produce a complete list.
     def initialize(dirs)
       @all = nil
       @stubs = nil
@@ -19,7 +37,13 @@ module Gem
       @spec_with_requirable_file = {}
       @active_stub_with_requirable_file = {}
 
-      @dirs = dirs
+      @dirs = dirs.uniq
+
+      @dir_info = @dirs.map do |dir|
+        parent = File.dirname dir
+        base_dir = self.class.abi_scoped_specifications_dir?(dir) ? File.dirname(parent) : parent
+        [dir, base_dir, File.join(base_dir, "gems")]
+      end
     end
 
     # Sentinel object to represent "not found" stubs
@@ -215,9 +239,7 @@ module Gem
     end
 
     def map_stubs(pattern)
-      @dirs.flat_map do |dir|
-        base_dir = File.dirname dir
-        gems_dir = File.join base_dir, "gems"
+      @dir_info.flat_map do |dir, base_dir, gems_dir|
         Gem::Specification.gemspec_stubs_in(dir, pattern) {|path| yield path, base_dir, gems_dir }
       end
     end

@@ -270,7 +270,11 @@ class Gem::Installer
   #     cache/<gem-version>.gem #=> a cached copy of the installed gem
   #     gems/<gem-version>/... #=> extracted files
   #     specifications/<gem-version>.gemspec #=> the Gem::Specification
-
+  #
+  # Content-addressed gems are installed under specifications/<ruby_abi>/:
+  #
+  #   @gem_home/
+  #     specifications/<ruby_abi>/<gem-version>.gemspec
   def install
     assign_content_address
     pre_install_checks
@@ -357,9 +361,11 @@ class Gem::Installer
     @installed_specs ||= begin
       specs = []
 
-      Gem::Util.glob_files_in_dir("*.gemspec", File.join(gem_home, "specifications")).each do |path|
-        spec = Gem::Specification.load path
-        specs << spec if spec
+      Gem::SpecificationRecord.specification_dirs_in(gem_home).each do |dir|
+        Gem::Util.glob_files_in_dir("*.gemspec", dir).each do |path|
+          spec = Gem::Specification.load path
+          specs << spec if spec
+        end
       end
 
       specs
@@ -395,7 +401,8 @@ class Gem::Installer
   #
 
   def spec_file
-    File.join gem_home, "specifications", "#{spec.full_name}.gemspec"
+    specifications = Gem::SpecificationRecord.specification_dir_for(spec, File.join(gem_home, "specifications"))
+    File.join specifications, "#{spec.full_name}.gemspec"
   end
 
   def default_spec_dir
@@ -419,7 +426,28 @@ class Gem::Installer
   def write_spec
     spec.installed_by_version = Gem.rubygems_version
 
+    abi_dir = File.dirname(spec_file) if Gem::ContentAddress.content_addressed?(spec)
+    ensure_writable_dir abi_dir if abi_dir
+
     Gem.write_binary(spec_file, spec.to_ruby_for_cache)
+
+    remove_legacy_flat_spec(abi_dir) if abi_dir
+
+    File.chmod(options[:dir_mode], abi_dir) if abi_dir && options[:dir_mode]
+  end
+
+  ##
+  # Removes a legacy flat gemspec left by a prior install when the gem
+  # has been relocated to specifications/<ruby_abi>/. Without this, both
+  # the flat and ABI-scoped copies exist, the flat one remains visible to
+  # older RubyGems, and SpecificationRecord loads duplicate stubs.
+
+  def remove_legacy_flat_spec(abi_dir)
+    flat_spec = File.join(gem_home, "specifications", spec.spec_name)
+    return unless flat_spec != spec_file && File.exist?(flat_spec)
+
+    FileUtils.rm_f(flat_spec)
+    verbose "Migrated #{spec.full_name} from flat to ABI-scoped specifications layout"
   end
 
   ##

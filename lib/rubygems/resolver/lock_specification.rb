@@ -30,7 +30,11 @@ class Gem::Resolver::LockSpecification < Gem::Resolver::Specification
   def install(options = {})
     destination = options[:install_dir] || Gem.dir
 
-    if File.exist? File.join(destination, "specifications", spec.spec_name)
+    specifications = File.join(destination, "specifications")
+    spec_dir = Gem::SpecificationRecord.specification_dir_for(spec, specifications)
+    installed = File.exist? File.join(spec_dir, spec.spec_name)
+
+    if installed
       yield nil
       return
     end

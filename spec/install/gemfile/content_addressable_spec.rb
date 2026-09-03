@@ -479,6 +479,126 @@ RSpec.describe "bundle install with content-addressable gems", :compact_index, r
       expect(err).to include("content address mismatch")
     end
   end
+
+  it "installs the content-addressed gemspec under an ABI-scoped specifications directory" do
+    simulate_platform "x86_64-linux" do
+      build_repo2 do
+        build_gem "mygem", "1.0" do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.write "lib/mygem.rb", "MYGEM = '1.0 not_content_addressed'"
+        end
+      end
+
+      build_gem "mygem", "1.0", ruby_abi: current_abi, path: gem_repo2("gems") do |s|
+        s.platform = Gem::Platform.new("x86_64-linux")
+        s.required_ruby_version = "~> #{current_abi}.0"
+        s.write "lib/mygem.rb", "MYGEM = '1.0 content_addressed'"
+      end
+
+      install_gemfile <<~G, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }
+        source "https://gem.repo2"
+
+        gem "mygem"
+      G
+
+      expect(the_bundle).to include_gems "mygem 1.0 content_addressed"
+
+      abi_specs = Dir[default_bundle_path("specifications", current_abi, "mygem-1.0-*.gemspec").to_s]
+      expect(abi_specs.size).to eq(1), "expected exactly one ABI-scoped gemspec, found: #{abi_specs}"
+      expect(abi_specs.first).to match(/mygem-1\.0-[0-9a-f]{8,64}\.gemspec$/)
+
+      # what a pre-4.1 RubyGems sees: a non-recursive glob of specifications/
+      flat_specs = Dir[default_bundle_path("specifications", "mygem-1.0-*.gemspec").to_s]
+      expect(flat_specs).to be_empty
+    end
+  end
+
+  it "removes stale content-addressed gems with bundle clean" do
+    simulate_platform "x86_64-linux" do
+      build_repo2 do
+        build_gem "mygem", "1.0" do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.write "lib/mygem.rb", "MYGEM = '1.0 not_content_addressed'"
+        end
+
+        build_gem "mygem", "2.0" do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.write "lib/mygem.rb", "MYGEM = '2.0 not_content_addressed'"
+        end
+      end
+
+      %w[1.0 2.0].each do |version|
+        build_gem "mygem", version, ruby_abi: current_abi, path: gem_repo2("gems") do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.required_ruby_version = "~> #{current_abi}.0"
+          s.write "lib/mygem.rb", "MYGEM = '#{version} content_addressed'"
+        end
+      end
+
+      bundle_config "path vendor/bundle"
+      bundle_config "clean false"
+
+      install_gemfile <<~G, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }
+        source "https://gem.repo2"
+
+        gem "mygem", "1.0"
+      G
+
+      gemfile <<~G
+        source "https://gem.repo2"
+
+        gem "mygem", "2.0"
+      G
+      bundle :install, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }
+
+      bundle :clean
+
+      expect(Dir[vendored_gems("specifications/#{current_abi}/mygem-1.0-*.gemspec").to_s]).to be_empty
+      expect(Dir[vendored_gems("gems/mygem-1.0-*").to_s]).to be_empty
+
+      expect(Dir[vendored_gems("specifications/#{current_abi}/mygem-2.0-*.gemspec").to_s].size).to eq(1)
+      expect(Dir[vendored_gems("gems/mygem-2.0-*").to_s].size).to eq(1)
+    end
+  end
+
+  it "removes stale content-addressed installs of other Ruby ABIs whole with bundle clean" do
+    simulate_platform "x86_64-linux" do
+      build_repo2 do
+        build_gem "mygem", "1.0" do |s|
+          s.platform = Gem::Platform.new("x86_64-linux")
+          s.write "lib/mygem.rb", "MYGEM = '1.0 not_content_addressed'"
+        end
+      end
+
+      bundle_config "path vendor/bundle"
+      bundle_config "clean false"
+
+      install_gemfile <<~G, artifice: "compact_index_v2", env: { "BUNDLER_SPEC_GEM_REPO" => gem_repo2.to_s }
+        source "https://gem.repo2"
+
+        gem "mygem", "1.0"
+      G
+
+      other_abi_spec_dir = vendored_gems("specifications/9.9").to_s
+      FileUtils.mkdir_p other_abi_spec_dir
+      other_abi_gemspec = File.join(other_abi_spec_dir, "othergem-1.0-aabbccdd.gemspec")
+      other_abi_spec = Gem::Specification.new do |s|
+        s.name = "othergem"
+        s.version = "1.0"
+        s.platform = Gem::Platform.new("x86_64-linux")
+        s.required_ruby_version = "~> 9.9.0"
+        s.content_address = "aabbccdd"
+      end
+      File.write other_abi_gemspec, other_abi_spec.to_ruby_for_cache
+      other_abi_gem_dir = vendored_gems("gems/othergem-1.0-aabbccdd").to_s
+      FileUtils.mkdir_p other_abi_gem_dir
+
+      bundle :clean
+
+      expect(File.exist?(other_abi_gemspec)).to be false
+      expect(File.exist?(other_abi_gem_dir)).to be false
+    end
+  end
 end
 
 RSpec.describe "bundle install with content-addressable gems invisible to pre-4.1 RubyGems clients", :compact_index, rubygems: ">= 4.1.0.a" do
@@ -507,7 +627,8 @@ RSpec.describe "bundle install with content-addressable gems invisible to pre-4.
 
       expect(the_bundle).to include_gems "mygem 1.0 content_addressed"
 
-      installed_gemspec = Dir[default_bundle_path("specifications", "mygem-1.0-*.gemspec").to_s].first
+      installed_gemspec = Dir[File.join(default_bundle_path("specifications").to_s, "**", "mygem-1.0-*.gemspec")].first
+      expect(installed_gemspec).not_to be_nil
       spec = Gem::Specification.load(installed_gemspec)
 
       expect(spec.required_rubygems_version).to eq(Gem::Requirement.new(">= 4.1.0.a"))
