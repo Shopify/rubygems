@@ -45,31 +45,35 @@ class TestGemCommandsUpdateCommand < Gem::TestCase
   def test_execute_content_addressable_compact_index_gem
     util_set_arch "x86_64-linux"
 
-    spec_fetcher do |fetcher|
-      fetcher.gem "ca_update", "0.9.0" do |s|
-        s.platform = "x86_64-linux"
+    release_ruby_version = Gem::Version.new("#{Gem.ruby_abi}.0")
+
+    Gem.stub(:ruby_version, release_ruby_version) do
+      spec_fetcher do |fetcher|
+        fetcher.gem "ca_update", "0.9.0" do |s|
+          s.platform = "x86_64-linux"
+        end
       end
+
+      _spec, _gem_path, content_address = util_setup_content_addressable_compact_index_gem(
+        "ca_update",
+        "1.0.0",
+        platform: "x86_64-linux"
+      )
+
+      @cmd.options[:args] = %w[ca_update]
+
+      use_ui @ui do
+        @cmd.execute
+      end
+
+      out = @ui.output.split "\n"
+      assert_equal "Updating installed gems", out.shift
+      assert_equal "Updating ca_update", out.shift
+      assert_equal "Gems updated: ca_update", out.shift
+      assert_empty out
+
+      assert_path_exist File.join(@gemhome, "specifications", "ca_update-1.0.0-#{content_address}.gemspec")
     end
-
-    _spec, _gem_path, content_address = util_setup_content_addressable_compact_index_gem(
-      "ca_update",
-      "1.0.0",
-      platform: "x86_64-linux"
-    )
-
-    @cmd.options[:args] = %w[ca_update]
-
-    use_ui @ui do
-      @cmd.execute
-    end
-
-    out = @ui.output.split "\n"
-    assert_equal "Updating installed gems", out.shift
-    assert_equal "Updating ca_update", out.shift
-    assert_equal "Gems updated: ca_update", out.shift
-    assert_empty out
-
-    assert_path_exist File.join(@gemhome, "specifications", "ca_update-1.0.0-#{content_address}.gemspec")
   end
 
   def test_execute_platform_compact_index_gem
