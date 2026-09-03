@@ -477,10 +477,29 @@ class Gem::Resolver
     @all_specs[name].group_by(&:version).transform_values do |candidates|
       next candidates.first if candidates.length == 1
 
-      # Prefer already-installed specs to avoid unnecessary downloads
+      # Prefer already-installed specs to avoid unnecessary downloads.
       installed = candidates.select {|s| s.is_a?(Gem::Resolver::InstalledSpecification) }
-      next installed.first if installed.length == 1
-      candidates = installed if installed.any?
+
+      # A widened remote address disambiguates artifacts that share the same
+      # default-length prefix. Keep it when it extends an installed address.
+      not_installed_widened = candidates.select {|s| !s.is_a?(Gem::Resolver::InstalledSpecification) && s.content_address && s.content_address.length > Gem::ContentAddress::DEFAULT_LENGTH }
+      widened_partially_matching_specs = []
+      not_installed_widened.each do |s|
+        installed.each do |i|
+          next if i.content_address&.length != Gem::ContentAddress::DEFAULT_LENGTH
+          if s.content_address.start_with?(i.content_address)
+            widened_partially_matching_specs << s
+            break
+          end
+        end
+      end
+
+      if widened_partially_matching_specs.any?
+        candidates = widened_partially_matching_specs
+      else
+        next installed.first if installed.length == 1
+        candidates = installed if installed.any?
+      end
 
       # Among remaining candidates, prefer a content-addressed candidate
       # built for the running Ruby, then the most specific platform, then the
@@ -490,8 +509,8 @@ class Gem::Resolver
       # before sorting by platform.
       candidates.min_by do |s|
         [Gem::ContentAddress.ruby_abi_specificity_match(s),
-         Gem::Platform.platform_specificity_match(s.platform, Gem::Platform.local),
-         source_rank[s.source]]
+        Gem::Platform.platform_specificity_match(s.platform, Gem::Platform.local),
+        source_rank[s.source]]
       end
     end
   end

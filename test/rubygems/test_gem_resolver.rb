@@ -336,6 +336,34 @@ class TestGemResolver < Gem::TestCase
     assert_resolves_to [ca_spec], resolver
   end
 
+  def test_prefers_remote_gem_with_widened_address_when_first_8_chars_match
+    current_abi = Gem.ruby_version.segments.first(2).join(".")
+    installed_set = Gem::Resolver::CurrentSet.new
+    ca_spec = util_spec "a", "1"
+    ca_spec.platform = Gem::Platform.local
+    ca_spec.content_address = "ab123456"
+    ca_spec.required_ruby_version = "~> #{current_abi}.0"
+    ca_installed_spec = Gem::Resolver::InstalledSpecification.new installed_set, ca_spec
+
+    api_set = Gem::Resolver::APISet.new
+    data = {
+      name: "a",
+      number: "1",
+      suffix: "ab1234567890",
+      dependencies: [],
+      requirements: { platform: ["= #{Gem::Platform.local}"], ruby: ["~> #{current_abi}.0"] },
+    }
+    widened_api_spec = Gem::Resolver::APISpecification.new api_set, data
+
+    s = StaticSet.new([ca_installed_spec, widened_api_spec])
+    dependency = make_dep "a"
+    resolver = Gem::Resolver.new([dependency], s)
+    resolved_spec = resolver.resolve.first.spec
+
+    assert_same widened_api_spec, resolved_spec
+    assert_equal "ab1234567890", resolved_spec.content_address
+  end
+
   def test_prefers_compatible_content_addressed_gem_over_more_specific_platform
     util_set_arch "arm64-darwin-27"
     current_abi = "#{Gem.ruby_version.segments[0]}.#{Gem.ruby_version.segments[1]}"
