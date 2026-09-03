@@ -68,6 +68,10 @@ module Bundler
 
       run_post_install_hooks
 
+      if spec.content_address && spec.content_address.length > Gem::ContentAddress::DEFAULT_LENGTH
+        remove_stale_matching_gems
+      end
+
       spec
     end
 
