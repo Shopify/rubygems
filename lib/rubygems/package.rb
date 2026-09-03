@@ -130,12 +130,6 @@ class Gem::Package
   attr_accessor :data_mode
 
   ##
-  # The number of characters of the SHA-256 digest of the gem contents used
-  # in a content-addressable gem file name.
-
-  DEFAULT_CONTENT_ADDRESS_LENGTH = Gem::ContentAddress::DEFAULT_LENGTH # :nodoc:
-
-  ##
   # The minimum RubyGems version that can install content-addressable gems.
   # Built into +required_rubygems_version+ so older clients reject skinny
   # gems through both the local and remote install paths.
