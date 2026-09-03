@@ -273,6 +273,9 @@ class Gem::Installer
 
   def install
     assign_content_address
+    if spec.content_address && spec.content_address.length > Gem::ContentAddress::DEFAULT_LENGTH
+      remove_stale_matching_gems
+    end
     pre_install_checks
 
     run_pre_install_hooks
@@ -972,6 +975,27 @@ class Gem::Installer
   end
 
   private
+
+  def remove_stale_matching_gems
+    require "digest"
+    incoming_sha = Digest::SHA256.file(gem).hexdigest
+    installed_specs.each do |installed_spec|
+      next unless installed_spec.name == spec.name
+      next unless installed_spec.version == spec.version
+      next unless installed_spec.platform == spec.platform
+      next unless installed_spec.ruby_abi == spec.ruby_abi
+      next unless installed_spec.content_address&.length == Gem::ContentAddress::DEFAULT_LENGTH
+      next unless spec.content_address.start_with?(installed_spec.content_address)
+      next unless File.exist?(installed_spec.cache_file)
+      installed_sha = Digest::SHA256.file(installed_spec.cache_file).hexdigest
+      next unless installed_sha == incoming_sha
+
+      # remove the stale gem and its cached .gem file
+      FileUtils.rm_rf File.join(gem_home, "gems", installed_spec.full_name)
+      FileUtils.rm_rf File.join(gem_home, "specifications", "#{installed_spec.full_name}.gemspec")
+      FileUtils.rm_rf File.join(gem_home, "cache", installed_spec.file_name)
+    end
+  end
 
   def assign_content_address
     address = @package.content_address

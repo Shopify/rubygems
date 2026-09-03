@@ -1390,6 +1390,66 @@ class TestGemInstaller < Gem::InstallerTestCase
     assert_equal 1, Dir[File.join(@gemhome, "specifications", "a-2*.gemspec")].size
   end
 
+  def test_reinstalling_a_content_addressed_gem_with_a_widened_sha_removes_the_old_gem
+    source_spec, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = "~> 3.4.0"
+      spec.platform = "x86_64-linux"
+    end
+    FileUtils.rm_rf source_spec.gem_dir
+
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    address = digest[0, 8]
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "a-2-#{address}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    installer.install
+
+    widened_address = digest[0, 12]
+    widened_filename = File.join(dir, "a-2-#{widened_address}.gem")
+    FileUtils.cp a_gem, widened_filename
+    installer2 = Gem::Installer.at widened_filename, install_dir: @gemhome, force: true
+    spec2 = installer2.install
+
+    assert_equal "a-2-#{widened_address}", spec2.full_name
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{widened_address}")
+    assert_path_exist File.join(@gemhome, "specifications", "a-2-#{widened_address}.gemspec")
+    assert_equal 1, Dir[File.join(@gemhome, "gems", "a-2*")].size
+    assert_equal 1, Dir[File.join(@gemhome, "specifications", "a-2*.gemspec")].size
+  end
+
+  def test_installing_widened_gem_does_not_remove_short_gem_when_checksums_differ
+    source_spec, a_gem = util_gem("a", 2) do |spec|
+      spec.required_ruby_version = "~> 3.4.0"
+      spec.platform = "x86_64-linux"
+    end
+    FileUtils.rm_rf source_spec.gem_dir
+
+    digest = Digest::SHA256.file(a_gem).hexdigest
+    address = digest[0, 8]
+    dir = File.dirname(a_gem)
+    filename = File.join(dir, "a-2-#{address}.gem")
+    FileUtils.cp a_gem, filename
+    installer = Gem::Installer.at filename, install_dir: @gemhome, force: true
+    short_spec = installer.install
+    File.binwrite(short_spec.cache_file, "different gem contents")
+
+    widened_address = digest[0, 12]
+    widened_filename = File.join(dir, "a-2-#{widened_address}.gem")
+    FileUtils.cp a_gem, widened_filename
+    installer2 = Gem::Installer.at widened_filename, install_dir: @gemhome, force: true
+    spec2 = installer2.install
+
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{address}")
+    assert_path_exist File.join(@gemhome, "specifications", "a-2-#{address}.gemspec")
+    assert_equal "a-2-#{widened_address}", spec2.full_name
+    assert_path_exist File.join(@gemhome, "gems", "a-2-#{widened_address}")
+    assert_path_exist File.join(@gemhome, "specifications", "a-2-#{widened_address}.gemspec")
+    assert_equal 2, Dir[File.join(@gemhome, "gems", "a-2*")].size
+    assert_equal 2, Dir[File.join(@gemhome, "specifications", "a-2*.gemspec")].size
+    assert_path_exist short_spec.cache_file
+  end
+
   def test_install_assigns_content_address_from_filename_with_full_sha
     _, a_gem = util_gem("a", 2) do |spec|
       spec.required_ruby_version = "~> 3.4.0"
