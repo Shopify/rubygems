@@ -20,7 +20,7 @@ class Gem::CompactIndexClient
   # info returns an Array of INFO Arrays. Each INFO Array has the following indices:
   INFO_NAME = 0
   INFO_VERSION = 1
-  INFO_PLATFORM = 2
+  INFO_SUFFIX = 2
   INFO_DEPS = 3
   INFO_REQS = 4
 

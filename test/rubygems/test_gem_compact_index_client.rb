@@ -60,7 +60,7 @@ class TestGemCompactIndexClient < Gem::TestCase
     assert_equal 2, info.size
     assert_equal "a", info.last[Gem::CompactIndexClient::INFO_NAME]
     assert_equal "1.1.0", info.last[Gem::CompactIndexClient::INFO_VERSION]
-    assert_nil info.last[Gem::CompactIndexClient::INFO_PLATFORM]
+    assert_nil info.last[Gem::CompactIndexClient::INFO_SUFFIX]
     assert_includes info.last[Gem::CompactIndexClient::INFO_REQS], ["created_at", ["2026-06-05T10:30:45Z"]]
   end
 
@@ -69,7 +69,7 @@ class TestGemCompactIndexClient < Gem::TestCase
 
     assert_equal 2, dependencies.size
     assert_equal "b", dependencies.last.first[Gem::CompactIndexClient::INFO_NAME]
-    assert_equal "java", dependencies.last.first[Gem::CompactIndexClient::INFO_PLATFORM]
+    assert_equal "java", dependencies.last.first[Gem::CompactIndexClient::INFO_SUFFIX]
   end
 
   def test_latest_version

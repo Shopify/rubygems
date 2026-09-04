@@ -125,6 +125,29 @@ class TestGemRemoteFetcher < Gem::TestCase
     assert File.exist?(a1_cache_gem)
   end
 
+  def test_download_and_install_content_addressed_gem
+    require "digest"
+
+    ca_spec, ca_gem = util_gem "a", "1" do |s|
+      s.required_ruby_version = ">= 3.0"
+      s.platform = "x86_64-linux"
+    end
+
+    address = Digest::SHA256.file(ca_gem).hexdigest[0, 10]
+    ca_spec.content_address = address
+    gem_data = File.binread ca_gem
+    gem_url = "http://gems.example.com/gems/a-1-#{address}.gem"
+    fetcher = fake_fetcher(gem_url, gem_data)
+
+    gem_path = fetcher.download(ca_spec, "http://gems.example.com")
+    installed_spec = Gem::Installer.at(gem_path, install_dir: @gemhome, force: true).install
+
+    assert_equal gem_url, fetcher.paths.last
+    assert_equal address, installed_spec.content_address
+    assert_equal "a-1-#{address}", installed_spec.full_name
+    assert_path_exist installed_spec.full_gem_path
+  end
+
   def test_download_with_auth
     a1_data = File.open @a1_gem, "rb", &:read
     a1_url = "http://user:password@gems.example.com/gems/a-1.gem"
