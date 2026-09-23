@@ -66,8 +66,8 @@ class Gem::PackageTask < Rake::PackageTask
   attr_accessor :gem_spec
 
   ##
-  # Ruby ABI used when building a content-addressable gem.
-  attr_accessor :ruby_abi
+  # Indicates whether this package should be built as a content-addressable gem.
+  attr_accessor :content_addressable
 
   ##
   # Create a Gem Package task library.  Automatically define the gem if a
@@ -97,16 +97,23 @@ class Gem::PackageTask < Rake::PackageTask
   def define
     super
 
+    ruby_abi = content_addressable ? Gem::ContentAddress.ruby_abi_for(gem_spec.required_ruby_version) : nil
+
     gem_file = File.basename gem_spec.cache_file
     gem_path = File.join package_dir, gem_file
+    gem_dir = File.join package_dir, gem_spec.full_name
 
     build_target =
-      if ruby_abi
+      if content_addressable
         File.join(package_dir, "#{gem_spec.full_name}-#{ruby_abi}.gem-built")
       else
         gem_path
       end
-    gem_dir = File.join package_dir, gem_spec.full_name
+
+    if content_addressable && File.file?(build_target)
+      built_gem_path = File.read(build_target)
+      rm_f build_target unless File.file?(built_gem_path)
+    end
 
     task package: [:gem]
 
@@ -122,13 +129,13 @@ class Gem::PackageTask < Rake::PackageTask
     file build_target => [package_dir, gem_dir] + @gem_spec.files do
       chdir(gem_dir) do
         when_writing "Creating #{gem_spec.file_name}" do
-          built_gem_file = Gem::Package.build gem_spec, false, false, nil, ruby_abi
+          built_gem_file = Gem::Package.build gem_spec, false, false, nil, content_addressable
 
           verbose trace do
             mv built_gem_file, ".."
           end
 
-          if ruby_abi
+          if content_addressable
             File.write(
               File.join("..", File.basename(build_target)),
               File.join(package_dir, built_gem_file)
