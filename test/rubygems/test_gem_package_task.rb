@@ -43,7 +43,7 @@ class TestGemPackageTask < Gem::TestCase
     RakeFileUtils.verbose_flag = original_rake_fileutils_verbosity
   end
 
-  def test_passes_ruby_abi_to_build_and_moves_filename_returned_by_build
+  def test_passes_content_addressable_to_build_and_moves_filename_returned_by_build
     original_rake_fileutils_verbosity = RakeFileUtils.verbose_flag
     RakeFileUtils.verbose_flag = false
 
@@ -62,7 +62,7 @@ class TestGemPackageTask < Gem::TestCase
 
     pkg = Gem::PackageTask.new(gem) do |p|
       p.package_files << "y"
-      p.ruby_abi = "3.4"
+      p.content_addressable = true
     end
 
     assert_equal %w[x y], pkg.package_files
@@ -73,9 +73,9 @@ class TestGemPackageTask < Gem::TestCase
 
       built_gem_file = "pkgr-1.2.3-01234567.gem"
 
-      Gem::Package.stub :build, ->(_spec, _skip_validation, _strict_validation, _file_name, ruby_abi) {
+      Gem::Package.stub :build, ->(_spec, _skip_validation, _strict_validation, _file_name, content_addressable) {
         FileUtils.touch built_gem_file
-        assert_equal "3.4", ruby_abi
+        assert content_addressable
         built_gem_file
       } do
         Rake.application["package"].invoke
