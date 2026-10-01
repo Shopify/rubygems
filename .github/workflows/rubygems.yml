@@ -41,13 +41,13 @@ jobs:
           - ruby: { name: "4.0", value: 4.0.5 }
             os: { name: macOS-intel, value: macos-15-intel }
 
-          - ruby: { name: jruby, value: jruby-10.1.0.0 }
+          - ruby: { name: jruby, value: jruby-10.1.2.0 }
             os: { name: Ubuntu, value: ubuntu-24.04 }
 
-          - ruby: { name: jruby, value: jruby-10.1.0.0 }
+          - ruby: { name: jruby, value: jruby-10.1.2.0 }
             os: { name: macOS, value: macos-26 }
 
-          - ruby: { name: jruby, value: jruby-10.1.0.0 }
+          - ruby: { name: jruby, value: jruby-10.1.2.0 }
             os: { name: Windows, value: windows-2025 }
 
           - ruby: { name: truffleruby, value: truffleruby-34.0.1 }
@@ -71,7 +71,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup ruby
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: ${{ matrix.ruby.value }}
           bundler: none
@@ -128,7 +128,7 @@ jobs:
           make install
 
       - name: Setup ruby
-        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: 4.0.5
           bundler: none
