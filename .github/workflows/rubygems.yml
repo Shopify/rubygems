@@ -41,13 +41,13 @@ jobs:
           - ruby: { name: "4.0", value: 4.0.5 }
             os: { name: macOS-intel, value: macos-15-intel }
 
-          - ruby: { name: jruby, value: jruby-10.1.0.0 }
+          - ruby: { name: jruby, value: jruby-10.1.2.0 }
             os: { name: Ubuntu, value: ubuntu-24.04 }
 
-          - ruby: { name: jruby, value: jruby-10.1.0.0 }
+          - ruby: { name: jruby, value: jruby-10.1.2.0 }
             os: { name: macOS, value: macos-26 }
 
-          - ruby: { name: jruby, value: jruby-10.1.0.0 }
+          - ruby: { name: jruby, value: jruby-10.1.2.0 }
             os: { name: Windows, value: windows-2025 }
 
           - ruby: { name: truffleruby, value: truffleruby-34.0.1 }
