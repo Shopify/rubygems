@@ -3,7 +3,9 @@ name: system-rubygems-bundler
 on:
   pull_request:
     paths:
-      - bundler/**
+      - lib/**
+      - exe/**
+      - bundler.gemspec
       - spec/**
       - bin/rspec
       - bin/parallel_rspec
